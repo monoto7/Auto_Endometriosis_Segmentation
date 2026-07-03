@@ -12,7 +12,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
-OUTPUT_ROOT = RESULTS_ROOT / "Model_comparison" / "Inference_comparison"
+OUTPUT_ROOT = RESULTS_ROOT / "Model_comparison" / "Inference_comparison"/ "new plots"
 
 
 STANDARDIZED_DATASETS = {
@@ -148,11 +148,13 @@ MODEL_ORDER = [
 DPI = 600
 
 TITLE_FONT_SIZE = 20
-DICE_FONT_SIZE = 15
+DICE_FONT_SIZE = 20
 
 # Increase these if you want even larger one-row panels.
 PANEL_WIDTH = 2.80
 PANEL_HEIGHT = 5.20
+# PANEL_WIDTH = 0.5
+# PANEL_HEIGHT = 3
 
 GT_ONLY_COLOR = np.array([0, 255, 0], dtype=np.float32)       # green
 PRED_ONLY_COLOR = np.array([255, 0, 0], dtype=np.float32)     # red
