@@ -135,19 +135,15 @@ def get_negative_points_box_background_or_fallback(
     fallback_offset_px: int = 5,
 ) -> List[Tuple[int, int]]:
     """
-    Creates four negative points:
-    1. top background point
-    2. bottom background point
-    3. left background point
-    4. right background point
+    Creates four negative points using a virtual box dilation.
 
-    Preferred source:
-    background inside tight box = box area minus SegFormer component.
-
-    Fallback:
-    if the box is too tight and no background exists in a side region,
-    place the point 5 px outside the box in that direction.
-    The box itself is not expanded.
+    Important:
+    - The SAM prompt box stays tight.
+    - Only the negative-point search region is expanded by fallback_offset_px.
+    - Background is calculated as:
+        dilated_box_region minus SegFormer component.
+    - Points are selected near the top, bottom, left, and right of the
+      virtually dilated box.
     """
     component_mask = binarize_mask(component_mask)
     height, width = component_mask.shape
@@ -165,42 +161,74 @@ def get_negative_points_box_background_or_fallback(
     if y2 < y1:
         y1, y2 = y2, y1
 
+    # Tight-box center.
     cx = int(round((x1 + x2) / 2.0))
     cy = int(round((y1 + y2) / 2.0))
 
-    box_mask = np.zeros_like(component_mask, dtype=np.uint8)
-    box_mask[y1:y2 + 1, x1:x2 + 1] = 1
+    # Virtual dilation for negative-point placement only.
+    x1d = int(np.clip(x1 - fallback_offset_px, 0, width - 1))
+    y1d = int(np.clip(y1 - fallback_offset_px, 0, height - 1))
+    x2d = int(np.clip(x2 + fallback_offset_px, 0, width - 1))
+    y2d = int(np.clip(y2 + fallback_offset_px, 0, height - 1))
 
-    box_background = ((box_mask > 0) & (component_mask == 0)).astype(np.uint8)
+    # Dilated box background = dilated box minus SegFormer component.
+    dilated_box_mask = np.zeros_like(component_mask, dtype=np.uint8)
+    dilated_box_mask[y1d:y2d + 1, x1d:x2d + 1] = 1
 
+    dilated_background = (
+        (dilated_box_mask > 0)
+        & (component_mask == 0)
+    ).astype(np.uint8)
+
+    # Prefer side bands outside the tight box but inside the virtually dilated box.
     top_candidates = np.zeros_like(component_mask, dtype=np.uint8)
-    top_candidates[y1:cy + 1, x1:x2 + 1] = box_background[y1:cy + 1, x1:x2 + 1]
+    if y1d <= y1:
+        top_candidates[y1d:y1 + 1, x1d:x2d + 1] = dilated_background[y1d:y1 + 1, x1d:x2d + 1]
 
     bottom_candidates = np.zeros_like(component_mask, dtype=np.uint8)
-    bottom_candidates[cy:y2 + 1, x1:x2 + 1] = box_background[cy:y2 + 1, x1:x2 + 1]
+    if y2 <= y2d:
+        bottom_candidates[y2:y2d + 1, x1d:x2d + 1] = dilated_background[y2:y2d + 1, x1d:x2d + 1]
 
     left_candidates = np.zeros_like(component_mask, dtype=np.uint8)
-    left_candidates[y1:y2 + 1, x1:cx + 1] = box_background[y1:y2 + 1, x1:cx + 1]
+    if x1d <= x1:
+        left_candidates[y1d:y2d + 1, x1d:x1 + 1] = dilated_background[y1d:y2d + 1, x1d:x1 + 1]
 
     right_candidates = np.zeros_like(component_mask, dtype=np.uint8)
-    right_candidates[y1:y2 + 1, cx:x2 + 1] = box_background[y1:y2 + 1, cx:x2 + 1]
+    if x2 <= x2d:
+        right_candidates[y1d:y2d + 1, x2:x2d + 1] = dilated_background[y1d:y2d + 1, x2:x2d + 1]
 
-    top_point = choose_background_point(top_candidates, cx, y1)
-    bottom_point = choose_background_point(bottom_candidates, cx, y2)
-    left_point = choose_background_point(left_candidates, x1, cy)
-    right_point = choose_background_point(right_candidates, x2, cy)
+    # Targets are on the virtual expanded border.
+    top_point = choose_background_point(top_candidates, cx, y1d)
+    bottom_point = choose_background_point(bottom_candidates, cx, y2d)
+    left_point = choose_background_point(left_candidates, x1d, cy)
+    right_point = choose_background_point(right_candidates, x2d, cy)
 
+    # If a side band is unavailable, fall back to the closest background point
+    # anywhere in the virtually dilated background.
     if top_point is None:
-        top_point = clip_point(cx, y1 - fallback_offset_px, width, height)
+        top_point = choose_background_point(dilated_background, cx, y1d)
 
     if bottom_point is None:
-        bottom_point = clip_point(cx, y2 + fallback_offset_px, width, height)
+        bottom_point = choose_background_point(dilated_background, cx, y2d)
 
     if left_point is None:
-        left_point = clip_point(x1 - fallback_offset_px, cy, width, height)
+        left_point = choose_background_point(dilated_background, x1d, cy)
 
     if right_point is None:
-        right_point = clip_point(x2 + fallback_offset_px, cy, width, height)
+        right_point = choose_background_point(dilated_background, x2d, cy)
+
+    # Final hard fallback: clipped virtual-border coordinates.
+    if top_point is None:
+        top_point = clip_point(cx, y1d, width, height)
+
+    if bottom_point is None:
+        bottom_point = clip_point(cx, y2d, width, height)
+
+    if left_point is None:
+        left_point = clip_point(x1d, cy, width, height)
+
+    if right_point is None:
+        right_point = clip_point(x2d, cy, width, height)
 
     return [top_point, bottom_point, left_point, right_point]
 
@@ -236,6 +264,10 @@ def build_box_posneg_prompt_from_component(
         "negative_points": negative_points,
         "point_coords": point_coords,
         "point_labels": point_labels,
+        "negative_point_strategy": (
+            "tight_box_used_for_sam_prompt; "
+            "virtual_box_dilated_by_5px_used_only_for_negative_point_background"
+        ),
     }
 
 
