@@ -19,7 +19,7 @@ from openpyxl.utils import get_column_letter
 RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
 
 OUTPUT_ROOT = RESULTS_ROOT / "Model_comparison" / "SAM_prompt_comparison"
-FIGURE_DIR = OUTPUT_ROOT / "figures_600dpi"
+FIGURE_DIR = OUTPUT_ROOT / "figures_600dpi" / "new plots"
 SUMMARY_XLSX = OUTPUT_ROOT / "sam_prompt_comparison_summary.xlsx"
 
 DISCOVERED_CSV = OUTPUT_ROOT / "discovered_prompt_files.csv"
@@ -84,6 +84,13 @@ PROMPT_TYPES = [
     "Box+Point",
     "Box+Point+Negative",
 ]
+
+PROMPT_DISPLAY_LABELS = {
+    "Point": "Point",
+    "Box": "Box",
+    "Box+Point": "Box+Point",
+    "Box+Point+Negative": "Box+Point+Neg.",
+}
 
 PROMPT_FOLDER_MAP = {
     "Point": [
@@ -163,14 +170,16 @@ METRICS = {
 DPI = 600
 
 # Compact figure
-FIG_WIDTH = 9.8
-FIG_HEIGHT = 5.4
+# FIG_WIDTH = 9.8
+# FIG_HEIGHT = 5.4
+FIG_WIDTH = 8
+FIG_HEIGHT = 5
 
 TITLE_FONT_SIZE = 14
-AXIS_FONT_SIZE = 13
+AXIS_FONT_SIZE = 14
 
 # Main prompt tick labels: smaller but bold
-TICK_FONT_SIZE = 13
+TICK_FONT_SIZE = 14
 
 # Skewed model labels under each box
 MODEL_LABEL_FONT_SIZE = 12
@@ -993,7 +1002,10 @@ def make_single_boxplot(values_df, dataset_key, split_key, metric_key):
 
     ax.set_xticks([item["center"] for item in prompt_centers])
     ax.set_xticklabels(
-        [item["prompt_type"] for item in prompt_centers],
+        [
+            PROMPT_DISPLAY_LABELS.get(item["prompt_type"], item["prompt_type"])
+            for item in prompt_centers
+        ],
         fontsize=TICK_FONT_SIZE,
         fontweight="bold",
     )
@@ -1001,11 +1013,25 @@ def make_single_boxplot(values_df, dataset_key, split_key, metric_key):
     # Push main prompt tick labels down slightly.
     ax.tick_params(axis="x", pad=8)
 
-    y_min, y_max = ax.get_ylim()
-    y_range = y_max - y_min
+    # Fixed y-axis for all plots.
+    # Fixed y-axis for all plots.
+    # Fixed y-axis for all plots.
+    ax.set_ylim(
+        bottom=-0.1,
+        top=1.05,
+    )
+
+    ax.set_yticks([0.0, 0.25, 0.5, 0.75, 1.0])
+    ax.set_yticklabels(["0.0", "0.25", "0.5", "0.75", "1.0"])
+
+    ax.tick_params(axis="y", labelsize=14)
+
+    # Compute model-label position after fixed y-limits.
+    final_y_min, final_y_max = ax.get_ylim()
+    final_y_range = final_y_max - final_y_min
 
     # Put model labels below prompt tick labels, with more vertical separation.
-    model_label_y = y_min - 0.155 * y_range
+    model_label_y = final_y_min - 0.185 * final_y_range
 
     for position, model_label in zip(positions, model_labels):
         ax.text(
@@ -1016,12 +1042,8 @@ def make_single_boxplot(values_df, dataset_key, split_key, metric_key):
             va="top",
             rotation=45,
             fontsize=MODEL_LABEL_FONT_SIZE,
+            clip_on=False,
         )
-
-    ax.set_ylim(
-        bottom=max(0.0, y_min),
-        top=min(1.05, y_max + 0.035 * y_range),
-    )
 
     if len(prompt_centers) > 0:
         ax.set_xlim(
@@ -1058,17 +1080,17 @@ def make_single_boxplot(values_df, dataset_key, split_key, metric_key):
     )
 
     fig.subplots_adjust(
-        bottom=0.46,
-        left=0.10,
+        bottom=0.45,
+        left=0.11,
         right=0.98,
-        top=0.84,
+        top=0.82,
     )
 
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
 
     output_png = FIGURE_DIR / f"{dataset_key}_{split_key}_{metric_key}_sam_prompt_boxplots_600dpi.png"
 
-    fig.savefig(output_png, dpi=DPI, bbox_inches="tight")
+    fig.savefig(output_png, dpi=DPI)
 
     plt.close(fig)
 
