@@ -56,8 +56,8 @@ EXAMPLES = {
         #"root_name": "c_1_v_(video_7.mp4)_f_0",
         #"root_name": "c_253_v_(video_8049.mp4)_f_147",
         #"root_name": "c_232_v_(video_7308.mp4)_f_0",
-        #"root_name": "c_3_v_(video_24.mp4)_f_137",
-        "root_name": "c_157_v_(video_4727.mp4)_f_0",
+        "root_name": "c_3_v_(video_24.mp4)_f_137",
+        #"root_name": "c_157_v_(video_4727.mp4)_f_0",
     },
     "GLENDA": {
         "split": "test",
@@ -72,8 +72,8 @@ EXAMPLES = {
         #"root_name": "c_141_v_(video_4254.mp4)_f_5",
         #"root_name": "c_86_v_(video_2617.mp4)_f_177",
         #"root_name": "c_141_v_(video_4253.mp4)_f_55",
-        #"root_name": "c_125_v_(video_3726.mp4)_f_247",
-        "root_name": "c_62_v_(video_2045.mp4)_f_363",
+        "root_name": "c_125_v_(video_3726.mp4)_f_247",
+        #"root_name": "c_62_v_(video_2045.mp4)_f_363",
     },
 }
 
@@ -93,8 +93,8 @@ IMAGE_EXTENSIONS = [
 
 DPI = 600
 
-TITLE_FONT_SIZE = 23
-DICE_FONT_SIZE = 16
+TITLE_FONT_SIZE = 20
+DICE_FONT_SIZE = 20
 
 PANEL_WIDTH = 3.8
 PANEL_HEIGHT = 5.6
@@ -696,7 +696,7 @@ def plot_hybrid_fallback_example(dataset_key: str, split: str, root_name: str):
         {
             "title": "Tuned Fallback Final",
             "bottom": (
-                f"{format_dice(final_dice)} | "
+                f"{format_dice(final_dice)} \n"
                 f"SAM accepted: {accepted_count}, fallback: {fallback_count}"
             ),
             "image": fallback_final_overlay,
