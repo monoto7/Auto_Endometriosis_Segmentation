@@ -1,11 +1,63 @@
-# Auto_Endometriosis_Segmentation
-Benchmarking SAM based models and comparison with supervised and weakly supervised models as well as hybrid combinations for zero-shot, few shot and automated endometriosis lesion segmentation on laparascopic images
+# Automatic Endometriosis Lesion Segmentation in Laparoscopy
 
-Research code for automatic endometriosis lesion segmentation in laparoscopic images.
+This repository provides a benchmarking framework for automatic and promptable segmentation of endometriosis lesions in laparoscopic images. The project compares supervised segmentation models, SAM-based foundation models, and hybrid auto-prompting approaches across multiple endometriosis datasets.
 
-This repository contains preprocessing, training, inference, benchmarking, prompt-comparison, hybrid segmentation, and model-comparison scripts for evaluating conventional segmentation models and SAM-based foundation models on endometriosis segmentation datasets.
+The goal is to evaluate how well different model families segment visually heterogeneous, small, and ambiguous endometriosis lesions, and whether promptable foundation models can improve fully automatic segmentation pipelines.
 
-The project focuses on automatic lesion segmentation in laparoscopic images, with experiments on datasets such as ENID, GLENDA, and GLENDA-clean.
+---
+
+## Reference
+
+This repository accompanies the following work:
+
+**From Promptable to Fully Automatic Segmentation of Endometriosis Lesions in Laparoscopy: A Cross-Dataset Benchmark of Supervised, SAM-Based, and Hybrid Models**
+
+Please cite the paper if you use this repository, code, or results in your own research.
+
+---
+
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Features](#features)
+- [Datasets](#datasets)
+- [Models](#models)
+- [Hybrid Segmentation](#hybrid-segmentation)
+- [Evaluation](#evaluation)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Repository Structure](#repository-structure)
+- [License](#license)
+
+---
+
+## Project Overview
+
+Endometriosis lesion segmentation in laparoscopic surgery remains challenging due to large appearance variability, weak contrast, irregular lesion boundaries, specular highlights, blood, fibrosis, and visual similarity to surrounding tissue.
+
+This project benchmarks several segmentation strategies:
+
+- fully supervised segmentation models,
+- zero-shot SAM-based promptable models,
+- prompt-type comparisons using point, box, and combined prompts (box+point, box+positive+negative points)
+- hybrid automatic pipelines using best performing trained model (SegFormer) predictions as prompts for SurgiSAM2 refinement.
+
+The benchmark focuses on cross-dataset evaluation, prompt sensitivity, and the practical limitations of using foundation models for fully automatic lesion segmentation.
+
+---
+
+## Features
+
+- **Supervised segmentation benchmarking** using CNN-, Transformer-, and YOLO-based models.
+- **SAM-based prompt comparison** across point, box, box+point, and box+positive/negative prompts.
+- **Hybrid auto-prompting pipelines** using SegFormer predictions to generate SurgiSAM2 box prompts.
+- **Fallback-based refinement** to avoid harmful SAM corrections when candidate masks disagree with the supervised prediction.
+- **Image-level metric calculation** for Dice, IoU, precision, and recall.
+- **Statistical comparison scripts** using paired Wilcoxon signed-rank tests and Holm correction.
+- **Publication-quality plots** for model comparison, prompt comparison, and qualitative visualization.
+- **Cross-dataset evaluation** on ENID, GLENDA, and GLENDA-clean.
+
+---
 
 ---
 
@@ -42,711 +94,141 @@ Auto_Endometriosis_Segmentation/
 
 ---
 
-## Project Overview
+## Datasets
 
-This repository benchmarks multiple approaches for endometriosis lesion segmentation from laparoscopic images.
+The benchmark uses laparoscopic endometriosis segmentation datasets:
 
-The code supports:
+- **ENID**
+- **GLENDA**
+- **GLENDA-clean**
 
-* Dataset preprocessing and standardization
-* Supervised model training and inference
-* SAM-based promptable segmentation
-* Prompt comparison across SAM-based models
-* Hybrid segmentation pipelines
-* Metric calculation from predicted masks
-* Statistical comparison between models
-* Inference-time comparison
-* Publication-ready plots and Excel summaries
+GLENDA-clean excludes box-like annotations and artifacts from the original GLENDA dataset to reduce annotation-artifact bias during training and evaluation.
 
-The main evaluation metrics are:
-
-* Dice score
-* Intersection over Union
-* Precision
-* Recall
+Each dataset is organized into standardized train, validation, and test splits with patient-level separation where applicable.
 
 ---
 
-## Supported Model Groups
+## Models
 
-### Supervised segmentation models
+### Supervised Models
 
-The repository is designed to support conventional supervised segmentation models such as:
+The following supervised segmentation models are included:
 
-```text
-nnU-Net / nnU-Net v2
-UNet++
-DeepLabV3+
-SegFormer
-YOLO-based segmentation models
-```
+- DeepLabV3+
+- UNet++
+- nnU-Net v2
+- SegFormer
+- YOLO11-seg
 
-### SAM-based models
+### SAM-Based Models
 
-The prompt-comparison pipeline supports:
+The following promptable foundation models are evaluated without task-specific fine-tuning:
 
-```text
-SAM2
-MedSAM
-SAM-Med2D
-SurgiSAM / SurgiSAM2
-```
+- SAM2
+- SurgiSAM2
+- MedSAM
+- SAM-Med2D
 
-### Hybrid models
+Prompt modes include:
 
-Hybrid experiments combine supervised segmentation models with SAM-based refinement.
-
-The main hybrid pipeline is:
-
-```text
-Input image
-    -> SegFormer lesion prediction
-    -> connected-component extraction
-    -> automatic box prompt generation
-    -> SurgiSAM2 mask refinement
-    -> optional fallback to SegFormer prediction
-```
+- point prompt,
+- box prompt,
+- box + positive point,
+- box + positive and negative points.
 
 ---
 
-## Folder Descriptions
+## Hybrid Segmentation
 
-### `configs/`
+The repository includes hybrid automatic segmentation pipelines that combine supervised predictions with SAM-based refinement.
 
-Contains configuration files and path/model settings.
+The main hybrid setup is:
 
-Use this folder for:
+1. Train or load a supervised SegFormer model.
+2. Extract connected components from the SegFormer prediction.
+3. Convert each component into an automatic prompt.
+4. Run SurgiSAM2 using box or box+positive/negative prompts.
+5. Accept the SurgiSAM2 candidate only if it agrees sufficiently with the SegFormer component.
+6. Otherwise, fall back to the original SegFormer component.
 
-* Dataset path configuration
-* Model checkpoint paths
-* Training configuration
-* Inference configuration
-* Experiment-specific settings
+Implemented hybrid variants include:
 
-If running the repository on a new machine, update paths in the relevant config files or at the top of each script.
-
----
-
-### `Preprocess/`
-
-Contains scripts for preparing datasets before training or evaluation.
-
-Typical preprocessing tasks include:
-
-* Converting raw datasets into a standardized folder structure
-* Resizing or checking images and masks
-* Splitting datasets into train/validation/test sets
-* Verifying image-mask correspondence
-* Preparing binary lesion masks
-
-Expected standardized dataset format:
-
-```text
-<DATASET_ROOT>/
-│
-├── train/
-│   ├── images/
-│   └── masks/
-│
-├── val/
-│   ├── images/
-│   └── masks/
-│
-└── test/
-    ├── images/
-    └── masks/
-```
-
-Example local dataset paths used during development:
-
-```text
-F:\Datasets\Standardized datasets\ENID\ENID 60_20_20 Split
-F:\Datasets\Standardized datasets\GLENDA\GLENDA 60_20_20 split
-F:\Datasets\Standardized datasets\GLENDA_clean\GLENDA_clean 60_20_20 split
-```
+- `SegFormer_SurgiSAM2_AutoBox`
+- `SegFormer_SurgiSAM2_AutoBox_Fallback`
+- `SegFormer_SurgiSAM2_AutoBox_PosNeg_Fallback`
 
 ---
 
-### `src/`
+## Evaluation
 
-Contains core source code used by the training, inference, and evaluation scripts.
+The main metrics are:
 
-This folder may include:
+- Dice score
+- Intersection over Union (IoU)
+- Precision
+- Recall
 
-* Dataset loaders
-* Model definitions
-* Training utilities
-* Inference utilities
-* Metric functions
-* Mask-processing functions
-* Visualization helpers
+Statistical comparisons are performed with paired image-level tests:
 
-Scripts in `run_models/`, `Hybrid/`, and `Model_comparison/` may import functions from `src/`.
+- paired Wilcoxon signed-rank test,
+- Holm-Bonferroni correction,
+- mean and median paired differences,
+- per-image improvement and worsening rates.
 
----
-
-### `run_models/`
-
-Contains executable scripts for running model experiments.
-
-Use this folder to launch:
-
-* Model training
-* Model inference
-* SAM-based inference
-* Hybrid inference
-* Dataset-specific model runs
-
-Example usage pattern:
-
-```cmd
-C:\Venvs\sam2-env\Scripts\python.exe "F:\GitHub repos\Auto_Endometriosis_Segmentation\run_models\<script_name>.py"
-```
-
-Many scripts define key settings near the top, for example:
-
-```python
-DATASETS_TO_RUN = ["ENID", "GLENDA", "GLENDA_clean"]
-SPLITS_TO_RUN = ["val", "test"]
-MAX_IMAGES_DEBUG = None
-```
-
-For a quick debug run:
-
-```python
-MAX_IMAGES_DEBUG = 5
-```
-
-For full evaluation:
-
-```python
-MAX_IMAGES_DEBUG = None
-```
-
----
-
-### `Hybrid/`
-
-Contains code for hybrid segmentation experiments.
-
-The main hybrid strategy is to use a supervised model, such as SegFormer, to generate an initial lesion mask and then refine it using a SAM-based model.
-
-Typical hybrid process:
-
-```text
-Image
-    -> SegFormer prediction
-    -> connected components
-    -> automatic bounding boxes
-    -> SurgiSAM2 prediction from boxes
-    -> candidate selection
-    -> fallback if refinement is not accepted
-```
-
-Important utilities may include:
-
-* Connected-component extraction
-* Automatic box generation
-* SegFormer inference
-* SurgiSAM2 inference
-* Candidate mask selection
-* Fallback rules
-* Dice/IoU agreement calculation
-* Area-ratio filtering
-
-The fallback hybrid is useful when SAM refinement occasionally removes valid lesion pixels. In that case, the script can keep the original SegFormer component unless the SAM candidate satisfies the acceptance criteria.
-
-Example acceptance criteria:
-
-```text
-Minimum IoU agreement
-Minimum Dice agreement
-Area-ratio range
-Optional clipping to a dilated SegFormer component
-```
-
----
-
-### `Model_comparison/`
-
-Contains scripts for comparing model outputs and generating final analysis files.
-
-This folder is used for:
-
-* Prompt comparison
-* Model metric comparison
-* Statistical testing
-* Inference-time comparison
-* Qualitative figure generation
-* Excel summary generation
-* Publication-ready plots
-
-Important outputs usually go to:
-
-```text
-F:\Results\SAM_Benchmarking\Model_comparison
-```
-
----
-
-### `scripts/`
-
-Contains additional utility scripts.
-
-This folder can be used for:
-
-* One-time data checks
-* File conversion
-* Debugging scripts
-* Helper scripts for organizing outputs
-* Miscellaneous project utilities
+The evaluation scripts generate CSV and Excel summaries for prompt comparisons, supervised model comparisons, and hybrid refinement analyses.
 
 ---
 
 ## Installation
 
-### 1. Clone the repository
+Clone the repository:
 
 ```bash
-git clone https://github.com/JArjomandi/Auto_Endometriosis_Segmentation.git
+git clone https://github.com/YOUR_USERNAME/Auto_Endometriosis_Segmentation.git
 cd Auto_Endometriosis_Segmentation
 ```
+Create and activate a Python environment (preferrably a separate rnv for each model to avoid any conflicts):
+```
+python -m venv sam2-env
+sam2-env\Scripts\activate
+```
+Install the required packages:
+```
+pip install -r requirements.txt
+```
+Additional SAM/SurgiSAM2 setup requires downloading external model checkpoints and placing them in the expected checkpoint folders.
 
----
+## Usage 
 
-### 2. Create a Python environment
-
-On Windows:
-
-```cmd
-python -m venv C:\Venvs\sam2-env
-C:\Venvs\sam2-env\Scripts\activate
+Usage example:
+Run supervised model inference
+```
+python run_models/run_segformer.py
+```
+Run hybrid SegFormer + SurgiSAM2 inference
+```
+python run_models/run_hybrid_segformer_surgisam2_autobox_fallback.py
+```
+Run box+positive/negative fallback hybrid inference
+```
+python run_models/run_hybrid_segformer_surgisam2_autobox_posneg_fallback.py
+```
+Run prompt comparison analysis
+```
+python Model_comparison/prompt_comparison.py
+```
+Run hybrid statistical comparison
+```
+python Model_comparison/compare_posneg_hybrid_statistics.py
 ```
 
-Upgrade pip:
-
-```cmd
-python -m pip install --upgrade pip setuptools wheel
-```
-
----
-
-### 3. Install core dependencies
-
-```cmd
-pip install numpy pandas matplotlib pillow openpyxl scipy scikit-image scikit-learn tqdm opencv-python
-```
-
-Install PyTorch according to your CUDA version.
-
-Example for CUDA 12.8:
-
-```cmd
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-```
-
-Additional dependencies may be needed depending on which models are used:
-
-```cmd
-pip install transformers segmentation-models-pytorch albumentations
-```
-
-Some external models, such as SAM2, MedSAM, SAM-Med2D, and SurgiSAM/SurgiSAM2, may require installation from their original repositories.
-
----
-
-## External Model Repositories
-
-Some SAM-based models are expected to be installed separately.
-
-Example local paths used during development:
-
-```text
-F:\Models\SAM2
-F:\Models\SurgiSAM2
-```
-
-Example SurgiSAM2 checkpoint:
-
-```text
-F:\Models\SurgiSAM2\checkpoints\Curated400_checkpoint_image_predictor.pt
-```
-
-Example SAM2/SurgiSAM2 config:
-
-```text
-configs/sam2/sam2_hiera_b+.yaml
-```
-
-If a script requires an external model repository, update the path variables at the top of the script.
-
----
-
-## Expected Results Folder Structure
-
-The main results root used by the project is usually:
-
-```text
-F:\Results\SAM_Benchmarking
-```
-
-A typical SAM-based inference result folder follows this format:
-
-```text
-F:\Results\SAM_Benchmarking\<DATASET>\<MODEL>\frozen\<PROMPT>\<SPLIT>\inference_results.csv
-```
-
-Example:
-
-```text
-F:\Results\SAM_Benchmarking\ENID\SAM2\frozen\GT_box\test\inference_results.csv
-```
-
----
-
-## SAM Prompt Folder Structure
-
-The prompt-comparison script expects prompt folders such as:
-
-```text
-GT_point
-GT_box
-GT_box_point
-GT_box_posneg
-```
-
-Example SAM2 structure:
-
-```text
-F:\Results\SAM_Benchmarking\ENID\SAM2\frozen\GT_point\test\inference_results.csv
-F:\Results\SAM_Benchmarking\ENID\SAM2\frozen\GT_box\test\inference_results.csv
-F:\Results\SAM_Benchmarking\ENID\SAM2\frozen\GT_box_point\test\inference_results.csv
-F:\Results\SAM_Benchmarking\ENID\SAM2\frozen\GT_box_posneg\test\inference_results.csv
-```
-
-Example MedSAM structure:
-
-```text
-F:\Results\SAM_Benchmarking\ENID\MedSAM\frozen\GT_box\test\inference_results.csv
-```
-
-Example SAM-Med2D structure:
-
-```text
-F:\Results\SAM_Benchmarking\ENID\SAM-Med2D\frozen\GT_point\test\inference_results.csv
-F:\Results\SAM_Benchmarking\ENID\SAM-Med2D\frozen\GT_box\test\inference_results.csv
-```
-
-Example SurgiSAM2 structure:
-
-```text
-F:\Results\SAM_Benchmarking\ENID\SurgiSAM2\frozen\GT_point\test\inference_results.csv
-F:\Results\SAM_Benchmarking\ENID\SurgiSAM2\frozen\GT_box\test\inference_results.csv
-F:\Results\SAM_Benchmarking\ENID\SurgiSAM2\frozen\GT_box_point\test\inference_results.csv
-F:\Results\SAM_Benchmarking\ENID\SurgiSAM2\frozen\GT_box_posneg\test\inference_results.csv
-```
-
----
-
-## SAM Prompt Support
-
-The prompt comparison follows this support table:
-
-| Model used | Point             | Box | Point + Box       | Box + positive + negative points |
-| ---------- | ----------------- | --- | ----------------- | -------------------------------- |
-| SAM2       | Yes               | Yes | Yes               | Yes                              |
-| MedSAM     | No / not standard | Yes | No / not standard | No / not standard                |
-| SAM-Med2D  | Yes               | Yes | No / not standard | No / not standard                |
-| SurgiSAM   | Yes               | Yes | Yes               | Yes                              |
-
-Prompt folders are mapped as:
-
-| Prompt type                      | Folder name     |
-| -------------------------------- | --------------- |
-| Point                            | `GT_point`      |
-| Box                              | `GT_box`        |
-| Box + Point                      | `GT_box_point`  |
-| Box + positive + negative points | `GT_box_posneg` |
-
----
-
-## `inference_results.csv` Format
-
-For SAM prompt comparison, each `inference_results.csv` should contain predicted mask information and ground-truth mask information.
-
-Expected or supported columns include:
-
-```text
-image_name
-mask_name
-gt_mask_name
-instance_mask_name
-pred_mask_name
-lesion_id
-bbox_xyxy
-bbox_x1
-bbox_y1
-bbox_x2
-bbox_y2
-prompt_mode
-inference_time_sec
-```
-
-At minimum, the script needs:
-
-```text
-mask_name or gt_mask_name
-instance_mask_name or pred_mask_name
-```
-
-These are used to find the ground-truth mask and predicted mask, then calculate Dice, IoU, precision, and recall.
-
----
-
-## Usage
-
-### Run SAM prompt comparison
-
-This script compares SAM2, MedSAM, SAM-Med2D, and SurgiSAM/SurgiSAM2 across available prompt types.
-
-```cmd
-C:\Venvs\sam2-env\Scripts\python.exe "F:\GitHub repos\Auto_Endometriosis_Segmentation\Model_comparison\prompt_comparison.py"
-```
-
-Outputs:
-
-```text
-F:\Results\SAM_Benchmarking\Model_comparison\SAM_prompt_comparison
-```
-
-Important output files:
-
-```text
-figures_600dpi/
-sam_prompt_comparison_summary.xlsx
-calculated_prompt_metrics_image_level.csv
-metric_calculation_check.csv
-discovered_prompt_files.csv
-```
-
-The script creates one boxplot per:
-
-```text
-Dataset
-Split
-Metric
-```
-
-For example:
-
-```text
-ENID_test_dice_sam_prompt_boxplots_600dpi.png
-ENID_test_iou_sam_prompt_boxplots_600dpi.png
-ENID_test_precision_sam_prompt_boxplots_600dpi.png
-ENID_test_recall_sam_prompt_boxplots_600dpi.png
-```
-
-Each plot shows:
-
-* Prompt type on the x-axis
-* Metric score on the y-axis
-* One boxplot per available SAM-based model
-* Mean as a red line
-* Median as a black line
-
----
-
-### Run hybrid inference
-
-Example:
-
-```cmd
-C:\Venvs\sam2-env\Scripts\python.exe "F:\GitHub repos\Auto_Endometriosis_Segmentation\run_models\run_hybrid_segformer_surgisam2_autobox_fallback.py"
-```
-
-Typical output folder:
-
-```text
-F:\Results\SAM_Benchmarking\<DATASET>\SegFormer_SurgiSAM2_AutoBox_Fallback\hybrid\Auto_box_fallback_dice_0p85_area_0p70_1p30\<SPLIT>
-```
-
-The hybrid pipeline uses:
-
-```text
-SegFormer prediction
-Automatic box prompt generation
-SurgiSAM2 refinement
-Fallback if the refined mask is not accepted
-```
-
----
-
-### Run statistical comparison
-
-Example:
-
-```cmd
-C:\Venvs\sam2-env\Scripts\python.exe "F:\GitHub repos\Auto_Endometriosis_Segmentation\Model_comparison\compare_segformer_vs_fallback_hybrid_surgisam2_statistics.py"
-```
-
-Typical output:
-
-```text
-F:\Results\SAM_Benchmarking\Model_comparison\statistical_comparison\segformer_vs_fallback_hybrid_surgisam2_statistics.xlsx
-```
-
----
-
-### Run inference-time comparison
-
-Example:
-
-```cmd
-C:\Venvs\sam2-env\Scripts\python.exe "F:\GitHub repos\Auto_Endometriosis_Segmentation\Model_comparison\calculate_all_model_inference_times.py"
-```
-
-Typical output:
-
-```text
-F:\Results\SAM_Benchmarking\Model_comparison\inference_time_comparison\all_models_mean_inference_times.xlsx
-```
-
----
-
-## Metrics
-
-The repository uses standard binary segmentation metrics.
-
-### Dice
-
-```text
-Dice = 2TP / (2TP + FP + FN)
-```
-
-### Intersection over Union
-
-```text
-IoU = TP / (TP + FP + FN)
-```
-
-### Precision
-
-```text
-Precision = TP / (TP + FP)
-```
-
-### Recall
-
-```text
-Recall = TP / (TP + FN)
-```
-
-For prompt-based SAM experiments, metrics are calculated directly from predicted masks and ground-truth masks.
-
----
-
-## Output Summary Files
-
-The prompt-comparison script creates:
-
-```text
-sam_prompt_comparison_summary.xlsx
-```
-
-Important sheets:
-
-| Sheet                      | Description                                                                  |
-| -------------------------- | ---------------------------------------------------------------------------- |
-| `simple_mean_std`          | Mean ± standard deviation for each dataset, split, model, prompt, and metric |
-| `wide_mean_std`            | Compact summary with models as columns                                       |
-| `prompt_support`           | Prompt support table                                                         |
-| `saved_plots`              | Paths to generated PNG figures                                               |
-| `image_level_metrics`      | Image-level metric values                                                    |
-| `discovered_files`         | Found and missing result files                                               |
-| `metric_calculation_check` | Diagnostic information for mask matching and metric calculation              |
-
----
-
-## Reproducibility Notes
-
-Results depend on:
-
-```text
-Dataset version
-Train/validation/test split
-Model checkpoint
-Prompt type
-Inference script version
-Metric calculation script version
-Post-processing settings
-CUDA/PyTorch version
-```
-
-Recommended practice:
-
-```text
-Save all inference_results.csv files.
-Save all predicted masks.
-Save generated Excel summaries.
-Save plotting scripts used for final figures.
-Record model checkpoints and dataset splits.
-```
-
----
-
-## Hardware and Environment
-
-Development environment example:
-
-```text
-OS: Windows 11
-Python: 3.11
-GPU: NVIDIA GeForce RTX 5090
-CUDA: 12.8
-PyTorch: CUDA-enabled build
-```
-
-The code can be adapted to Linux by changing paths and environment commands.
-
----
-
-## Project Status
-
-This repository is under active research development. Scripts are designed for benchmarking, ablation studies, and manuscript figure generation. Paths and external model dependencies may need to be edited before running on another system.
-
----
+The generated outputs include image-level metrics, summary Excel files, visual comparison plots, and qualitative segmentation examples.
 
 ## License
 
-See the `LICENSE` file.
+This project is licensed under the Apache License, Version 2.0. You may obtain a copy of the License at:
 
----
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 
-## Citation
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
-If this repository is used in academic work, cite the repository as:
-
-```text
-Arjomandi, J. Auto Endometriosis Segmentation. GitHub repository.
-https://github.com/JArjomandi/Auto_Endometriosis_Segmentation
-```
-
-If a related manuscript is published, cite the corresponding paper.
-
----
-
-## Acknowledgements
-
-This project builds on open-source segmentation frameworks and foundation models, including:
-
-```text
-PyTorch
-nnU-Net
-SegFormer
-SAM / SAM2
-MedSAM
-SAM-Med2D
-SurgiSAM / SurgiSAM2
-```
-
-Datasets and third-party model checkpoints are not redistributed in this repository. Refer to the original dataset and model sources for licensing and access conditions.
