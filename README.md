@@ -10,7 +10,7 @@ The goal is to evaluate how well different model families segment visually heter
 
 This repository accompanies the following work:
 
-**From Promptable to Fully Automatic Segmentation of Endometriosis Lesions in Laparoscopy: A Cross-Dataset Benchmark of Supervised, SAM-Based, and Hybrid Models**
+**Evaluating the Prompt-to-Automation Gap: A Cross-Dataset Benchmark for Laparoscopic Endometriosis Segmentation** (in work of publication, submitted to CAPI workshop, MICCAI 2026)
 
 Please cite the paper if you use this repository, code, or results in your own research.
 
