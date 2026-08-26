@@ -1,0 +1,21 @@
+experiment_name: "GynSurg_SurgiSAM2_Frozen_OraclePrompts"
+
+dataset_config: "configs/datasets/Fluoro.yaml"
+model_config: "configs/models/surgisam2_frozen.yaml"
+
+output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/Fluoro/SurgiSam/"
+
+splits:
+  - val
+  - test
+
+prompt_modes:
+  - GT_point
+  - GT_box
+  - GT_box_point
+  - GT_box_posneg
+
+save:
+  instance_masks: true
+  merged_masks: true
+  overlays: true

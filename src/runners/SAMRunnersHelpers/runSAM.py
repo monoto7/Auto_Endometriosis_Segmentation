@@ -7,12 +7,12 @@ import numpy as np
 import pandas as pd
 import yaml
 from PIL import Image
+import torch
 
-from src.models.medsam.medsam_wrapper import MedSAMFrozenWrapper
+from src.models.surgisam2.surgisam2_wrapper import SurgiSAM2FrozenWrapper
 from src.evaluation.metrics import compute_binary_metrics
 from src.evaluation.metrics import compute_multiclass_metrics
 from src.utils.visualization import save_overlay
-
 
 def load_yaml(path):
     path = Path(path)
@@ -24,6 +24,7 @@ def load_yaml(path):
 def load_rgb_image(image_path: Path) -> np.ndarray:
     image = Image.open(image_path).convert("RGB")
     return np.array(image)
+
 
 #No longer converting mask into binary, as we want to handle multiple classes and the data preparation should already do this for single class situations
 def load_mask(mask_path: Path) -> np.ndarray:
@@ -66,26 +67,76 @@ def find_mask_path(masks_dir: Path, image_name: str) -> Path:
     raise FileNotFoundError(f"Mask not found for {image_name} in {masks_dir}")
 
 
-def parse_box_from_row(row):
-    return [
+def parse_json_field(value, default=None):
+    if default is None:
+        default = []
+
+    if pd.isna(value):
+        return default
+
+    if isinstance(value, str):
+        return json.loads(value)
+
+    return value
+
+
+def build_prompt_from_row(row, prompt_mode: str):
+    box = [
         float(row["bbox_x1"]),
         float(row["bbox_y1"]),
         float(row["bbox_x2"]),
         float(row["bbox_y2"]),
     ]
 
+    positive_point = [
+        float(row["positive_point_x"]),
+        float(row["positive_point_y"]),
+    ]
 
-def run_one_split(
+    if prompt_mode == "GT_point":
+        return {
+            "box": None,
+            "point_coords": [positive_point],
+            "point_labels": [1],
+        }
+
+    if prompt_mode == "GT_box":
+        return {
+            "box": box,
+            "point_coords": None,
+            "point_labels": None,
+        }
+
+    if prompt_mode == "GT_box_point":
+        return {
+            "box": box,
+            "point_coords": [positive_point],
+            "point_labels": [1],
+        }
+
+    if prompt_mode == "GT_box_posneg":
+        point_coords = parse_json_field(row["point_coords_xy"], default=[])
+        point_labels = parse_json_field(row["point_labels"], default=[])
+
+        return {
+            "box": box,
+            "point_coords": point_coords,
+            "point_labels": point_labels,
+        }
+
+    raise ValueError(f"Unsupported prompt mode: {prompt_mode}")
+
+
+def run_one_prompt_mode(
     dataset_name: str,
     dataset_root: Path,
     split_name: str,
     split_cfg: dict,
     output_root: Path,
-    model: MedSAMFrozenWrapper,
+    prompt_mode: str,
+    model: SurgiSAM2FrozenWrapper,
     save_cfg: dict,
 ):
-    prompt_mode = "GT_box"
-
     images_dir = dataset_root / split_cfg["images"]
     masks_dir = dataset_root / split_cfg["masks"]
     prompts_csv = dataset_root / split_cfg["prompts"]
@@ -107,7 +158,12 @@ def run_one_split(
         "bbox_y1",
         "bbox_x2",
         "bbox_y2",
+        "positive_point_x",
+        "positive_point_y",
     ]
+
+    if prompt_mode == "GT_box_posneg":
+        required_columns.extend(["point_coords_xy", "point_labels"])
 
     for column in required_columns:
         if column not in prompts_df.columns:
@@ -129,7 +185,7 @@ def run_one_split(
     grouped = prompts_df.groupby("image_name", sort=False)
 
     print("\n" + "=" * 100)
-    print(f"Running {dataset_name} | {split_name} | MedSAM | {prompt_mode}")
+    print(f"Running {dataset_name} | {split_name} | SurgiSAM2 | {prompt_mode}")
     print("=" * 100)
     print(f"Images:  {images_dir}")
     print(f"Masks:   {masks_dir}")
@@ -149,17 +205,21 @@ def run_one_split(
         model.set_image(image_rgb)
 
         merged_pred = np.zeros(gt_mask.shape, dtype=np.uint8)
-        #Create dictionary for storing class predictions
         class_merged_pred = {}
 
         for _, row in image_prompts.iterrows():
             lesion_id = int(row["lesion_id"]) if "lesion_id" in row else 0
-            #Get class ID/grayscaleVal if available
             class_id = int(row["class_id"]) if "class_id" in row else None
-            box_xyxy = parse_box_from_row(row)
+            prompt = build_prompt_from_row(row, prompt_mode)
 
             start_time = time.perf_counter()
-            pred_mask, mean_probability = model.predict(box_xyxy)
+
+            pred_mask, sam_score, selected_mask_index = model.predict(
+                box=prompt["box"],
+                point_coords=prompt["point_coords"],
+                point_labels=prompt["point_labels"],
+            )
+
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
             if pred_mask.shape != gt_mask.shape:
@@ -171,11 +231,13 @@ def run_one_split(
 
             merged_pred = np.maximum(merged_pred, pred_mask)
 
+            #If class seperation exists, merge output
             if(class_id is not None):
                 if(class_id not in class_merged_pred):
                         class_merged_pred[class_id] = np.zeros(gt_mask.shape, dtype=np.uint8)
                 class_merged_pred[class_id] = np.maximum(class_merged_pred[class_id], pred_mask)
 
+            if(class_id is not None):
                 instance_name = f"{Path(image_name).stem}_class_{class_id:03d}_lesion_{lesion_id:03d}.png"
             else:
                 instance_name = f"{Path(image_name).stem}_lesion_{lesion_id:03d}.png"
@@ -185,23 +247,24 @@ def run_one_split(
             if save_cfg.get("instance_masks", True):
                 save_binary_mask(pred_mask, instance_path)
 
+            
+
             inference_rows.append(
                 {
                     "dataset": dataset_name,
                     "split": split_name,
-                    "model_name": "MedSAM",
+                    "model_name": "SurgiSAM2",
                     "training_state": "frozen",
                     "prompt_mode": prompt_mode,
                     "image_name": image_name,
                     "mask_name": Path(mask_path).name,
+                    "class_id" : class_id,
                     "lesion_id": lesion_id,
-                    "class_id": class_id,
-                    "bbox_x1": box_xyxy[0],
-                    "bbox_y1": box_xyxy[1],
-                    "bbox_x2": box_xyxy[2],
-                    "bbox_y2": box_xyxy[3],
-                    "bbox_xyxy": json.dumps(box_xyxy),
-                    "medsam_mean_probability": mean_probability,
+                    "bbox_xyxy": json.dumps(prompt["box"]),
+                    "point_coords_xy": json.dumps(prompt["point_coords"]),
+                    "point_labels": json.dumps(prompt["point_labels"]),
+                    "sam_score": sam_score,
+                    "selected_mask_index": selected_mask_index,
                     "inference_time_ms": elapsed_ms,
                     "instance_mask_name": instance_name,
                 }
@@ -220,6 +283,7 @@ def run_one_split(
                 class_merged_path = merged_dir / class_merged_name
                 save_binary_mask(class_merged_pred[key], class_merged_path)
 
+            
 
         if save_cfg.get("overlays", True):
             overlay_path = overlay_dir / f"{Path(image_name).stem}_overlay.png"
@@ -243,7 +307,7 @@ def run_one_split(
             metric_row = {
                 "dataset": dataset_name,
                 "split": split_name,
-                "model_name": "MedSAM",
+                "model_name": "SurgiSAM2",
                 "training_state": "frozen",
                 "prompt_mode": prompt_mode,
                 "image_name": image_name,
@@ -266,7 +330,7 @@ def run_one_split(
                 metric_row = {
                     "dataset": dataset_name,
                     "split": split_name,
-                    "model_name": "MedSAM",
+                    "model_name": "SurgiSAM2",
                     "training_state": "frozen",
                     "prompt_mode": prompt_mode,
                     "image_name": image_name,
@@ -301,47 +365,3 @@ def run_one_split(
     print(f"Saved inference CSV: {inference_csv}")
     print(f"Saved image-level metrics CSV: {metrics_csv}")
     print(f"Saved summary CSV: {summary_csv}")
-
-
-def run_experiment(experiment_config_path):
-    experiment_config_path = Path(experiment_config_path)
-    project_root = Path(__file__).resolve().parents[2]
-
-    exp_cfg = load_yaml(experiment_config_path)
-
-    dataset_cfg_path = project_root / exp_cfg["dataset_config"]
-    model_cfg_path = project_root / exp_cfg["model_config"]
-
-    dataset_cfg = load_yaml(dataset_cfg_path)
-    model_cfg = load_yaml(model_cfg_path)
-
-    dataset_name = dataset_cfg["dataset_name"]
-    dataset_root = Path(dataset_cfg["dataset_root"])
-    output_root = Path(exp_cfg["output_root"])
-
-    prompt_modes = exp_cfg.get("prompt_modes", ["GT_box"])
-
-    if prompt_modes != ["GT_box"]:
-        raise ValueError("MedSAM runner currently supports only prompt_modes: ['GT_box']")
-
-    model = MedSAMFrozenWrapper(
-        medsam_repo_root=model_cfg["medsam_repo_root"],
-        checkpoint=model_cfg["checkpoint"],
-        device=model_cfg.get("device", "cuda:0"),
-        image_size=model_cfg.get("image_size", 1024),
-    )
-
-    save_cfg = exp_cfg.get("save", {})
-
-    for split_name in exp_cfg["splits"]:
-        split_cfg = dataset_cfg["splits"][split_name]
-
-        run_one_split(
-            dataset_name=dataset_name,
-            dataset_root=dataset_root,
-            split_name=split_name,
-            split_cfg=split_cfg,
-            output_root=output_root,
-            model=model,
-            save_cfg=save_cfg,
-        )

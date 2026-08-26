@@ -1,0 +1,18 @@
+experiment_name: "Fluoro_MedSAM_Frozen_OracleBox"
+
+dataset_config: "configs/datasets/Fluoro.yaml"
+model_config: "configs/models/medsam_frozen.yaml"
+
+output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/Fluoro/MedSAM/"
+
+splits:
+  - val
+  - test
+
+prompt_modes:
+  - GT_box
+
+save:
+  instance_masks: true
+  merged_masks: true
+  overlays: true

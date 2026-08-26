@@ -8,12 +8,14 @@ from src.runners.run_sammed2d_oracle import run_experiment
 from src.evaluation.visualize_metrics import visualize_dataset_model_split
 
 
-RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
+RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
 
 CONFIGS_TO_RUN = [
-    PROJECT_ROOT / "configs" / "experiments" / "enid_sammed2d_frozen_oracle.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "glenda_sammed2d_frozen_oracle.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_sammed2d_frozen_oracle.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "enid_sammed2d_frozen_oracle.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "glenda_sammed2d_frozen_oracle.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_sammed2d_frozen_oracle.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "GynSurg_SamMed2D.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "Fluoro_sammed2D.yaml",
 ]
 
 # Run only ENID:
@@ -27,9 +29,11 @@ CONFIGS_TO_RUN = [
 # ]
 
 DATASETS_TO_VISUALIZE = [
-    "ENID",
-    "GLENDA",
-    "GLENDA_clean",
+    #"ENID",
+    #"GLENDA",
+    #"GLENDA_clean",
+    "GynSurg",
+    #"Fluoro",
 ]
 
 SPLITS_TO_VISUALIZE = [
@@ -66,8 +70,8 @@ def main():
                 visualize_dataset_model_split(
                     results_root=RESULTS_ROOT,
                     dataset_name=dataset_name,
-                    model_name="SAM-Med2D",
-                    training_state="frozen",
+                    model_name="SamMed2D",
+                    training_state="",
                     split=split,
                 )
             except Exception as error:

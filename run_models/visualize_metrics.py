@@ -11,16 +11,18 @@ from src.evaluation.visualize_metrics import visualize_dataset_model_split
 # Generic metric visualization launcher
 # ============================================================
 
-RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
+RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
 
 # Change these when visualizing another model.
 MODEL_NAME = "SAM2"
-TRAINING_STATE = "frozen"
+TRAINING_STATE = ""
 
 # Comment out anything you do not want.
 DATASETS_TO_VISUALIZE = [
-    "ENID",
-    "GLENDA",
+    #"ENID",
+    #"GLENDA",
+    "GynSurg",
+    #"Fluoro",
 ]
 
 SPLITS_TO_VISUALIZE = [

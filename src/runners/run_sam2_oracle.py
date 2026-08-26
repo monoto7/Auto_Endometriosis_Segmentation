@@ -10,6 +10,7 @@ from tqdm import tqdm
 from src.models.sam2.sam2_wrapper import SAM2FrozenWrapper
 from src.utils.mask_utils import (
     load_binary_mask,
+    load_mask,
     save_binary_mask,
     merge_binary_masks,
     find_image_path,
@@ -18,7 +19,7 @@ from src.utils.mask_utils import (
 )
 from src.utils.visualization import save_overlay
 from src.evaluation.metrics import compute_binary_metrics
-
+from src.evaluation.metrics import compute_multiclass_metrics
 
 def load_yaml(path: Path) -> dict:
     import yaml
@@ -142,16 +143,24 @@ def run_one_prompt_mode(
         image = Image.open(image_path).convert("RGB")
         image_np = np.array(image)
 
-        gt_mask = load_binary_mask(gt_mask_path)
+        gt_mask = load_mask(gt_mask_path)
 
         model.set_image(image_np)
 
         lesion_pred_masks = []
 
+        #Create dictionary for storing class predictions
+        class_merged_pred = {}
+
+
+
         for _, row in image_rows.iterrows():
             lesion_id = int(row["lesion_id"])
             box, point_coords, point_labels = build_prompt_from_row(row, prompt_mode)
 
+            #Get class ID/grayscaleVal if available
+            class_id = int(row["class_id"]) if "class_id" in row else None
+            
             start_time = time.perf_counter()
 
             pred_mask, sam_score, selected_index = model.predict(
@@ -164,8 +173,15 @@ def run_one_prompt_mode(
 
             pred_mask = ensure_same_size(pred_mask, gt_mask)
             lesion_pred_masks.append(pred_mask)
+            #If class seperation exists, merge output
+            if(class_id is not None):
+                if(class_id not in class_merged_pred):
+                        class_merged_pred[class_id] = np.zeros(gt_mask.shape, dtype=np.uint8)
+                class_merged_pred[class_id] = np.maximum(class_merged_pred[class_id], pred_mask)
 
-            instance_name = f"{Path(image_name).stem}_lesion_{lesion_id:03d}.png"
+                instance_name = f"{Path(image_name).stem}_class_{class_id:03d}_lesion_{lesion_id:03d}.png"
+            else:
+                instance_name = f"{Path(image_name).stem}_lesion_{lesion_id:03d}.png"
             instance_path = instance_dir / instance_name
 
             if save_cfg.get("instance_masks", True):
@@ -178,6 +194,7 @@ def run_one_prompt_mode(
                 "prompt_mode": prompt_mode,
                 "image_name": image_name,
                 "gt_mask_name": gt_mask_path.name,
+                "class_id" : class_id,
                 "lesion_id": lesion_id,
                 "bbox_xyxy": json.dumps([
                     int(row["bbox_x1"]),
@@ -197,6 +214,7 @@ def run_one_prompt_mode(
             merged_mask = merge_binary_masks(lesion_pred_masks)
         else:
             merged_mask = empty_mask_like_image(image_path)
+        
 
         merged_mask = ensure_same_size(merged_mask, gt_mask)
 
@@ -206,6 +224,15 @@ def run_one_prompt_mode(
         if save_cfg.get("merged_masks", True):
             save_binary_mask(merged_mask, merged_path)
 
+        #Handling for seperate classes to save them as seperate masks
+        if save_cfg.get("class_merged_masks", True):
+            for key in class_merged_pred:
+                class_merged_name =  f"classes/{Path(image_name).stem}_{key:03d}.png"
+                class_merged_path = merged_dir / class_merged_name
+                save_binary_mask(class_merged_pred[key], class_merged_path)
+        
+                    
+        
         if save_cfg.get("overlays", True):
             overlay_path = overlay_dir / f"{Path(image_name).stem}_overlay.jpg"
             save_overlay(
@@ -215,9 +242,11 @@ def run_one_prompt_mode(
                 output_path=overlay_path,
             )
 
-        metrics = compute_binary_metrics(merged_mask, gt_mask)
 
-        metrics.update({
+        if len(class_merged_pred) == 0:
+            metrics = compute_binary_metrics(merged_mask, gt_mask)
+
+            metrics.update({
             "dataset": dataset_name,
             "split": split_name,
             "method": "SAM2_frozen",
@@ -226,7 +255,28 @@ def run_one_prompt_mode(
             "gt_mask_name": gt_mask_path.name,
             "merged_mask_name": merged_name,
             "num_prompt_instances": int(len(image_rows)),
-        })
+            })
+        else:
+            for key in class_merged_pred:
+                #compute_multiclass_metrics uses the class_id as the grayscale value to compare with in GT.
+                metrics = compute_multiclass_metrics(
+                    pred_mask=merged_mask,
+                    gt_mask=gt_mask,
+                    class_g_value=key
+                )
+
+
+                metrics.update({
+                    "dataset": dataset_name,
+                    "split": split_name,
+                    "method": "SAM2_frozen",
+                    "prompt_mode": prompt_mode,
+                    "image_name": image_name,
+                    "gt_mask_name": gt_mask_path.name,
+                    "merged_mask_name": merged_name,
+                    "class_id": key,
+                    "num_prompt_instances": int(len(image_rows)),
+                })
 
         metric_rows.append(metrics)
 

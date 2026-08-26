@@ -1,0 +1,19 @@
+dataset_name: Flouro
+
+dataset_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/SplitDatasets/Fluoro"
+
+splits:
+  train:
+    images: "train/images"
+    masks: "train/masks"
+    prompts: "oracle_prompts/Fluoro_train_oracle_prompts.csv"
+
+  val:
+    images: "val/images"
+    masks: "val/masks"
+    prompts: "oracle_prompts/Fluoro_val_oracle_prompts.csv"
+
+  test:
+    images: "test/images"
+    masks: "test/masks"
+    prompts: "oracle_prompts/Fluoro_test_oracle_prompts.csv"

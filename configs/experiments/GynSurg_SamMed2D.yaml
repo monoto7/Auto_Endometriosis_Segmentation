@@ -1,0 +1,20 @@
+experiment_name: "GynSurg_SAMMed2D_Frozen_OraclePrompts"
+
+dataset_config: "configs/datasets/gynsurg.yaml"
+model_config: "configs/models/sammed2d_frozen.yaml"
+
+output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/SamMed2D/"
+
+splits:
+  - val
+  - test
+
+prompt_modes:
+  - GT_point
+  - GT_box
+
+save:
+  instance_masks: true
+  merged_masks: true
+  overlays: true
+  class_merged_masks: true

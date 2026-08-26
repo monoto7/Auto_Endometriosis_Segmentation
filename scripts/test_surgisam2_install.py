@@ -4,12 +4,12 @@ import sys
 import torch
 
 
-SAM2_ROOT = Path(r"F:\Models\SAM2")
+SAM2_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\Models\SAM2\sam2")
 SURGISAM2_CHECKPOINT = Path(
-    r"F:\Models\SurgiSAM2\checkpoints\Curated400_checkpoint_image_predictor.pt"
+    r"C:\Users\cooll\OneDrive\Documents\SPARC\SAM checkpoints\Curated400_checkpoint_26.pt"
 )
 # Start with original SAM2 Base Plus config.
-MODEL_CFG = "configs/sam2/sam2_hiera_b+.yaml"
+MODEL_CFG = r"C:\Users\cooll\OneDrive\Documents\SPARC\Models\SAM2\sam2\\sam2\\configs\\sam2.1\\sam2.1_hiera_b+.yaml"
 
 
 def main():

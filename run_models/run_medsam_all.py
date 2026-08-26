@@ -12,12 +12,15 @@ from src.evaluation.visualize_metrics import visualize_dataset_model_split
 # Run frozen MedSAM oracle-box experiments
 # ============================================================
 
-RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
+RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
+
 
 CONFIGS_TO_RUN = [
-    PROJECT_ROOT / "configs" / "experiments" / "enid_medsam_frozen_oracle.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "glenda_medsam_frozen_oracle.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_medsam_frozen_oracle.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "enid_surgisam2_frozen_oracle.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "glenda_surgisam2_frozen_oracle.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_surgisam2_frozen_oracle.yaml",
+    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_MedSAM.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "Fluoro_medsam.yaml",
 ]
 
 # Run only ENID:
@@ -31,9 +34,11 @@ CONFIGS_TO_RUN = [
 # ]
 
 DATASETS_TO_VISUALIZE = [
-    "ENID",
-    "GLENDA",
-    "GLENDA_clean",
+    #"ENID",
+    #"GLENDA",
+    #"GLENDA_clean",
+    "GynSurg",
+    #Fluoro",
 ]
 
 SPLITS_TO_VISUALIZE = [
@@ -71,7 +76,7 @@ def main():
                     results_root=RESULTS_ROOT,
                     dataset_name=dataset_name,
                     model_name="MedSAM",
-                    training_state="frozen",
+                    training_state="",
                     split=split,
                 )
             except Exception as error:

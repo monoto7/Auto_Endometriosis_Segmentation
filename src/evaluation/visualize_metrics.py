@@ -203,6 +203,7 @@ def make_prompt_comparison_boxplot(
     training_state: str,
     split: str,
     prompt_modes: list,
+    class_id: str="",
 ) -> Path:
     data = []
     labels = []
@@ -264,7 +265,7 @@ def make_prompt_comparison_boxplot(
         patch.set_facecolor("#BFDDF2")
 
     title = (
-        f"{dataset_name} | {model_name} {training_state} | "
+        f"{dataset_name}{class_id} | {model_name} {training_state} | "
         f"{split} | {metric_display_name(metric)}"
     )
 
@@ -286,7 +287,7 @@ def make_prompt_comparison_boxplot(
 
     fig.tight_layout()
 
-    out_name = f"{dataset_name}_{metric}_{split}_prompt_compare.png"
+    out_name = f"{dataset_name}_{metric}_{split}_{class_id}_prompt_compare.png"
     out_path = output_dir / out_name
 
     fig.savefig(out_path, dpi=500)
@@ -368,6 +369,7 @@ def save_excel_summary(
     dataset_name: str,
     split: str,
     prompt_modes: list,
+    class_id: str = "",
 ) -> Path:
     image_summary = summarize_numeric_columns(
         image_metrics_df,
@@ -388,7 +390,7 @@ def save_excel_summary(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    out_xlsx = output_dir / f"{dataset_name}_{split}_summary_statistics.xlsx"
+    out_xlsx = output_dir / f"{dataset_name}_{split}_{class_id}_summary_statistics.xlsx"
 
     with pd.ExcelWriter(out_xlsx, engine="openpyxl") as writer:
         summary_all.to_excel(writer, sheet_name="summary_all", index=False)
@@ -453,15 +455,42 @@ def visualize_dataset_model_split(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    class_ids = []
+    if 'class_id' in image_metrics_df:
+        class_ids = image_metrics_df['class_id'].unique()
+
+    
+    
+    for id in class_ids:
+        combined_csv_class = output_dir / f"{dataset_name}_{split}_{id}_combined_prompt_metrics.csv"
+        image_metrics_df.loc[image_metrics_df['class_id'] == id].to_csv(combined_csv_class, index=False)
+        print(f"Saved combined image-level class {id} CSV: {combined_csv_class}")
+
     combined_csv = output_dir / f"{dataset_name}_{split}_combined_prompt_metrics.csv"
     image_metrics_df.to_csv(combined_csv, index=False)
     print(f"Saved combined image-level CSV: {combined_csv}")
 
     if not inference_df.empty:
+        for id in class_ids:
+            combined_inference_csv_class = output_dir / f"{dataset_name}_{split}_{id}_combined_inference_results.csv"
+            inference_df.loc[inference_df['class_id'] == id].to_csv(combined_inference_csv_class, index=False)
+            print(f"Saved combined inference class {id} CSV: {combined_inference_csv_class}")
         combined_inference_csv = output_dir / f"{dataset_name}_{split}_combined_inference_results.csv"
         inference_df.to_csv(combined_inference_csv, index=False)
         print(f"Saved combined inference CSV: {combined_inference_csv}")
 
+
+    for id in class_ids:
+        excel_path = save_excel_summary(
+            image_metrics_df=image_metrics_df.loc[image_metrics_df['class_id'] == id],
+            inference_df=inference_df.loc[inference_df['class_id'] == id],
+            output_dir=output_dir,
+            dataset_name=dataset_name,
+            split=split,
+            prompt_modes=prompt_modes,
+            class_id=id
+        )
+        print(f"Saved Excel summary for {id}: {excel_path}")
     excel_path = save_excel_summary(
         image_metrics_df=image_metrics_df,
         inference_df=inference_df,
@@ -472,6 +501,26 @@ def visualize_dataset_model_split(
     )
     print(f"Saved Excel summary: {excel_path}")
 
+
+    for id in class_ids:
+        for metric in METRICS_TO_PLOT:
+            if metric not in image_metrics_df.columns:
+                print(f"WARNING: metric not found in image-level CSVs, skipping plot: {metric}")
+                continue
+
+            out_path = make_prompt_comparison_boxplot(
+                df=image_metrics_df.loc[image_metrics_df['class_id'] == id],
+                metric=metric,
+                output_dir=output_dir,
+                dataset_name=dataset_name,
+                model_name=model_name,
+                training_state=training_state,
+                split=split,
+                prompt_modes=prompt_modes,
+                class_id=id
+            )
+
+            print(f"Saved plot: {out_path}")
     for metric in METRICS_TO_PLOT:
         if metric not in image_metrics_df.columns:
             print(f"WARNING: metric not found in image-level CSVs, skipping plot: {metric}")

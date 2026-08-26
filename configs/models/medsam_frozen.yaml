@@ -1,8 +1,8 @@
 model_name: MedSAM
 training_state: frozen
 
-medsam_repo_root: "F:/Models/MedSAM"
-checkpoint: "F:/Models/MedSAM/work_dir/MedSAM/medsam_vit_b.pth"
+medsam_repo_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\Models\\MedSAM\\MedSAM"
+checkpoint: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\SAM checkpoints\\medsam_vit_b.pth"
 
-device: "cuda:0"
+device: "cuda"
 image_size: 1024

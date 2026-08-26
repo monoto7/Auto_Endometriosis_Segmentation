@@ -1,8 +1,8 @@
 model_name: SAM2
 training_state: frozen
 
-sam2_repo_root: "F:/Models/SAM2"
-checkpoint: "F:/Models/SAM2/checkpoints/sam2.1_hiera_large.pt"
+sam2_repo_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\Models\\SAM2\\sam2"
+checkpoint: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\SAM Checkpoints\\sam2.1_hiera_large.pt"
 
 model_cfg: "configs/sam2.1/sam2.1_hiera_l.yaml"
 

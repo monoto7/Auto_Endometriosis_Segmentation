@@ -1,8 +1,8 @@
 model_name: SAM-Med2D
 training_state: frozen
 
-sammed2d_repo_root: "F:/Models/SAM-Med2D"
-checkpoint: "F:/Models/SAM-Med2D/pretrain_model/sam-med2d_b.pth"
+sammed2d_repo_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\Models\\SAM-Med2d\\SAM-Med2D"
+checkpoint: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\SAM Checkpoints\\sam-med2d_b.pth"
 
 device: "cuda"
 model_type: "vit_b"

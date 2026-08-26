@@ -9,6 +9,14 @@ def load_binary_mask(mask_path: Path) -> np.ndarray:
     return (arr > 0).astype(np.uint8)
 
 
+#No longer converting mask into binary, as we want to handle multiple classes and the data preparation should already do this for single class situations
+def load_mask(mask_path: Path) -> np.ndarray:
+    mask = Image.open(mask_path).convert("L")
+    mask_np = np.array(mask)
+    return mask_np
+
+
+
 def save_binary_mask(mask: np.ndarray, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     mask_uint8 = (mask > 0).astype(np.uint8) * 255

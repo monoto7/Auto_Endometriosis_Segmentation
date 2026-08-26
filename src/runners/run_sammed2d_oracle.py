@@ -11,6 +11,7 @@ import torch
 
 from src.models.sammed2d.sammed2d_wrapper import SAMMed2DFrozenWrapper
 from src.evaluation.metrics import compute_binary_metrics
+from src.evaluation.metrics import compute_multiclass_metrics
 from src.utils.visualization import save_overlay
 
 
@@ -26,10 +27,11 @@ def load_rgb_image(image_path: Path) -> np.ndarray:
     return np.array(image)
 
 
-def load_binary_mask(mask_path: Path) -> np.ndarray:
+#No longer converting mask into binary, as we want to handle multiple classes and the data preparation should already do this for single class situations
+def load_mask(mask_path: Path) -> np.ndarray:
     mask = Image.open(mask_path).convert("L")
     mask_np = np.array(mask)
-    return (mask_np > 0).astype(np.uint8) * 255
+    return mask_np
 
 
 def save_binary_mask(mask: np.ndarray, output_path: Path):
@@ -166,14 +168,18 @@ def run_one_prompt_mode(
         mask_path = find_mask_path(masks_dir, image_name)
 
         image_rgb = load_rgb_image(image_path)
-        gt_mask = load_binary_mask(mask_path)
+        gt_mask = load_mask(mask_path)
 
         model.set_image(image_rgb)
 
         merged_pred = np.zeros(gt_mask.shape, dtype=np.uint8)
+        #Create dictionary for storing class predictions
+        class_merged_pred = {}
 
         for _, row in image_prompts.iterrows():
             lesion_id = int(row["lesion_id"]) if "lesion_id" in row else 0
+            #Get class ID/grayscaleVal if available
+            class_id = int(row["class_id"]) if "class_id" in row else None
             prompt = build_prompt_from_row(row, prompt_mode)
 
             start_time = time.perf_counter()
@@ -195,7 +201,15 @@ def run_one_prompt_mode(
 
             merged_pred = np.maximum(merged_pred, pred_mask)
 
-            instance_name = f"{Path(image_name).stem}_lesion_{lesion_id:03d}.png"
+            #If class seperation exists, merge output
+            if(class_id is not None):
+                if(class_id not in class_merged_pred):
+                        class_merged_pred[class_id] = np.zeros(gt_mask.shape, dtype=np.uint8)
+                class_merged_pred[class_id] = np.maximum(class_merged_pred[class_id], pred_mask)
+
+                instance_name = f"{Path(image_name).stem}_class_{class_id:03d}_lesion_{lesion_id:03d}.png"
+            else:
+                instance_name = f"{Path(image_name).stem}_lesion_{lesion_id:03d}.png"
             instance_path = instance_dir / instance_name
 
             if save_cfg.get("instance_masks", True):
@@ -211,6 +225,7 @@ def run_one_prompt_mode(
                     "image_name": image_name,
                     "mask_name": Path(mask_path).name,
                     "lesion_id": lesion_id,
+                    "class_id" : class_id,
                     "bbox_xyxy": json.dumps(prompt["box"]),
                     "point_coords_xy": json.dumps(prompt["point_coords"]),
                     "point_labels": json.dumps(prompt["point_labels"]),
@@ -227,6 +242,16 @@ def run_one_prompt_mode(
         if save_cfg.get("merged_masks", True):
             save_binary_mask(merged_pred, merged_path)
 
+         #Handling for seperate classes to save them as seperate masks
+        if save_cfg.get("class_merged_masks", True):
+            for key in class_merged_pred:
+                class_merged_name =  f"classes/{Path(image_name).stem}_{key:03d}.png"
+                class_merged_path = merged_dir / class_merged_name
+                save_binary_mask(class_merged_pred[key], class_merged_path)
+        
+                    
+        
+
         if save_cfg.get("overlays", True):
             overlay_path = overlay_dir / f"{Path(image_name).stem}_overlay.png"
 
@@ -237,24 +262,51 @@ def run_one_prompt_mode(
                 output_path=overlay_path,
             )
 
-        metrics = compute_binary_metrics(
-            pred_mask=merged_pred,
-            gt_mask=gt_mask,
-        )
+        if len(class_merged_pred) == 0:
+            metrics = compute_binary_metrics(
+                pred_mask=merged_pred,
+                gt_mask=gt_mask,
+            )
 
-        metric_row = {
-            "dataset": dataset_name,
-            "split": split_name,
-            "model_name": "SAM-Med2D",
-            "training_state": "frozen",
-            "prompt_mode": prompt_mode,
-            "image_name": image_name,
-            "mask_name": Path(mask_path).name,
-            "num_prompt_instances": int(len(image_prompts)),
-        }
 
-        metric_row.update(metrics)
-        metric_rows.append(metric_row)
+            metric_row = {
+                "dataset": dataset_name,
+                "split": split_name,
+                "model_name": "SAM-Med2D",
+                "training_state": "frozen",
+                "prompt_mode": prompt_mode,
+                "image_name": image_name,
+                "mask_name": Path(mask_path).name,
+                "num_prompt_instances": int(len(image_prompts)),
+            }
+
+
+            metric_row.update(metrics)
+            metric_rows.append(metric_row)
+        else:
+            for key in class_merged_pred:
+                #compute_multiclass_metrics uses the class_id as the grayscale value to compare with in GT.
+                metrics = compute_multiclass_metrics(
+                    pred_mask=merged_pred,
+                    gt_mask=gt_mask,
+                    class_g_value=key
+                )
+
+
+                metric_row = {
+                    "dataset": dataset_name,
+                    "split": split_name,
+                    "model_name": "SAM-Med2D",
+                    "training_state": "frozen",
+                    "prompt_mode": prompt_mode,
+                    "image_name": image_name,
+                    "mask_name": Path(mask_path).name,
+                    "class_id": key,
+                    "num_prompt_instances": int(len(image_prompts)),
+                }
+
+                metric_row.update(metrics)
+                metric_rows.append(metric_row)
 
     inference_df = pd.DataFrame(inference_rows)
     metrics_df = pd.DataFrame(metric_rows)

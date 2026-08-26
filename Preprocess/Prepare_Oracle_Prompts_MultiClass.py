@@ -7,15 +7,12 @@ from PIL import Image
 
 
 # ============================================================
-# Oracle prompt generation for ENID and GLENDA
+# Multiclass Oracle prompt generation for GynSurg
 # Positive point + tight box + local negative background points
 # ============================================================
 
 DATASETS = {
-    #"ENID": Path(r"F:\Datasets\Standardized datasets\ENID\ENID 60_20_20 Split"),
-    #"GLENDA": Path(r"F:\Datasets\Standardized datasets\GLENDA\GLENDA 60_20_20 split"),
-    #"GynSurg": Path(r"C:/Users/Administrator/Documents/SPARC/SplitDatasets/GynSurg"),
-    "Fluoro": Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\SplitDatasets\Fluoro"),
+    "GynSurg": Path(r"C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\SplitDatasets\\GynSurg")
 }
 
 SPLITS = ["train", "val", "test"]
@@ -39,15 +36,20 @@ NEGATIVE_MARGIN_STEP_PX = 10
 SAVE_VISUAL_CHECKS = False
 
 
-def load_binary_mask(mask_path: Path) -> np.ndarray:
+def load_grayscale_masks(mask_path: Path):
     """
     Loads mask as:
       0 = background
       1 = foreground
     """
+    
     mask = Image.open(mask_path).convert("L")
     mask_np = np.array(mask)
-    return (mask_np > 0).astype(np.uint8)
+    uniques = np.unique(mask_np[mask_np>0])
+    masks = []
+    for val in uniques:
+        masks.append((mask_np == val).astype(np.uint8))
+    return masks,uniques
 
 
 def find_connected_components(binary_mask: np.ndarray):
@@ -380,102 +382,109 @@ def process_split(dataset_name: str, dataset_root: Path, split: str):
             missing_masks.append(image_path.name)
             continue
 
-        binary_mask = load_binary_mask(mask_path)
-
-        if binary_mask.sum() == 0:
+        masks,grayscale_values = load_grayscale_masks(mask_path)
+        if masks.count==1 and masks[0].sum() == 0:
             empty_masks += 1
-            continue
+        else:
+            #Setting to -1 to it iterates to 0 at the start of the loop, to have mask_id logic near the top
+            mask = -1
+            for binary_mask in masks:
+                mask+=1
+                if binary_mask.sum() == 0:
+                    continue
 
-        components = find_connected_components(binary_mask)
+                components = find_connected_components(binary_mask)
 
-        if len(components) == 0:
-            empty_masks += 1
-            continue
+                if len(components) == 0:
+                    empty_masks += 1
+                    continue
 
-        image_prompt_rows = []
+                image_prompt_rows = []
 
-        for component in components:
-            lesion_id = component["lesion_id"]
-            component_mask = component["component_mask"]
-            area = component["area"]
-            bbox = component["bbox"]
+                for component in components:
+                    lesion_id = component["lesion_id"]
+                    component_mask = component["component_mask"]
+                    area = component["area"]
+                    bbox = component["bbox"]
 
-            positive_point = get_center_positive_point(component_mask)
-            negative_points = generate_negative_points(binary_mask, bbox)
+                    positive_point = get_center_positive_point(component_mask)
+                    negative_points = generate_negative_points(binary_mask, bbox)
 
-            if len(negative_points) < NUM_NEGATIVE_POINTS:
-                components_without_4_negative_points += 1
+                    if len(negative_points) < NUM_NEGATIVE_POINTS:
+                        components_without_4_negative_points += 1
 
-            x1, y1, x2, y2 = bbox
+                    x1, y1, x2, y2 = bbox
 
-            point_coords = []
-            point_labels = []
+                    point_coords = []
+                    point_labels = []
 
-            if positive_point is not None:
-                point_coords.append(positive_point)
-                point_labels.append(1)
+                    if positive_point is not None:
+                        point_coords.append(positive_point)
+                        point_labels.append(1)
 
-            for neg in negative_points:
-                point_coords.append(neg)
-                point_labels.append(0)
+                    for neg in negative_points:
+                        point_coords.append(neg)
+                        point_labels.append(0)
 
-            row = {
-                "dataset": dataset_name,
-                "split": split,
+                    row = {
+                        "dataset": dataset_name,
+                        "split": split,
 
-                "image_name": image_path.name,
-                "mask_name": mask_path.name,
+                        "image_name": image_path.name,
+                        "mask_name": mask_path.name,
 
-                "lesion_id": lesion_id,
-                "component_area_px": area,
+                        #set the class_id as the grayscale_value of the class
+                        "class_id": grayscale_values[mask],
+                        "lesion_id": lesion_id,
+                        "component_area_px": area,
 
-                # Tight GT box around this lesion component.
-                "bbox_x1": x1,
-                "bbox_y1": y1,
-                "bbox_x2": x2,
-                "bbox_y2": y2,
-                "bbox_xyxy": json.dumps([x1, y1, x2, y2]),
+                        # Tight GT box around this lesion component.
+                        "bbox_x1": x1,
+                        "bbox_y1": y1,
+                        "bbox_x2": x2,
+                        "bbox_y2": y2,
+                        "bbox_xyxy": json.dumps([x1, y1, x2, y2]),
 
-                # Positive point.
-                "positive_point_x": positive_point[0] if positive_point else None,
-                "positive_point_y": positive_point[1] if positive_point else None,
-                "positive_points_xy": json.dumps([positive_point] if positive_point else []),
+                        # Positive point.
+                        "positive_point_x": positive_point[0] if positive_point else None,
+                        "positive_point_y": positive_point[1] if positive_point else None,
+                        "positive_points_xy": json.dumps([positive_point] if positive_point else []),
 
-                # Local negative background points.
-                "negative_points_xy": json.dumps(negative_points),
-                "num_negative_points": len(negative_points),
+                        # Local negative background points.
+                        "negative_points_xy": json.dumps(negative_points),
+                        "num_negative_points": len(negative_points),
 
-                # Directly usable for SAM APIs.
-                "point_coords_xy": json.dumps(point_coords),
-                "point_labels": json.dumps(point_labels),
+                        # Directly usable for SAM APIs.
+                        "point_coords_xy": json.dumps(point_coords),
+                        "point_labels": json.dumps(point_labels),
 
-                # Prompt mode labels.
-                "prompt_gt_point": json.dumps([positive_point] if positive_point else []),
-                "prompt_gt_box": json.dumps([x1, y1, x2, y2]),
-                "prompt_gt_box_plus_point": json.dumps({
-                    "box": [x1, y1, x2, y2],
-                    "points": [positive_point] if positive_point else [],
-                    "labels": [1] if positive_point else []
-                }),
-                "prompt_gt_box_plus_pos_neg_points": json.dumps({
-                    "box": [x1, y1, x2, y2],
-                    "points": point_coords,
-                    "labels": point_labels
-                }),
-            }
+                        # Prompt mode labels.
+                        "prompt_gt_point": json.dumps([positive_point] if positive_point else []),
+                        "prompt_gt_box": json.dumps([x1, y1, x2, y2]),
+                        "prompt_gt_box_plus_point": json.dumps({
+                            "box": [x1, y1, x2, y2],
+                            "points": [positive_point] if positive_point else [],
+                            "labels": [1] if positive_point else []
+                        }),
+                        "prompt_gt_box_plus_pos_neg_points": json.dumps({
+                            "box": [x1, y1, x2, y2],
+                            "points": point_coords,
+                            "labels": point_labels
+                        }),
+                    }
 
-            all_rows.append(row)
-            image_prompt_rows.append(row)
-            total_components += 1
+                    all_rows.append(row)
+                    image_prompt_rows.append(row)
+                    total_components += 1
 
-        if SAVE_VISUAL_CHECKS:
-            out_vis_path = visual_dir / f"{image_path.stem}_oracle_prompts.jpg"
-            draw_visual_check(
-                image_path=image_path,
-                mask_path=mask_path,
-                prompt_rows=image_prompt_rows,
-                out_path=out_vis_path
-            )
+            if SAVE_VISUAL_CHECKS:
+                out_vis_path = visual_dir / f"{image_path.stem}_oracle_prompts.jpg"
+                draw_visual_check(
+                    image_path=image_path,
+                    mask_path=mask_path,
+                    prompt_rows=image_prompt_rows,
+                    out_path=out_vis_path
+                )
 
     df = pd.DataFrame(all_rows)
 

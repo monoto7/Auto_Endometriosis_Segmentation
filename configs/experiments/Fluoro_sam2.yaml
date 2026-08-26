@@ -1,0 +1,21 @@
+experiment_name: "GynSurg_SAM2_Frozen_OraclePrompts"
+
+dataset_config: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\Jasmin repos\\AES\\Auto_Endometriosis_Segmentation\\configs\\datasets\\Fluoro.yaml"
+model_config: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\Jasmin repos\\AES\\Auto_Endometriosis_Segmentation\\configs\\models\\sam2_frozen.yaml"
+
+output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/Fluoro/SAM2/"
+
+splits:
+  - val
+  - test
+
+prompt_modes:
+  - GT_point
+  - GT_box
+  - GT_box_point
+  - GT_box_posneg
+
+save:
+  instance_masks: true
+  merged_masks: true
+  overlays: true

@@ -2,8 +2,8 @@ import sys
 from pathlib import Path
 import torch
 
-SAM2_ROOT = Path(r"F:\\Models\\SAM2")
-CHECKPOINT = r"F:\\Models\\SAM2\\checkpoints\\sam2.1_hiera_large.pt"
+SAM2_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\Models\\SAM2\\sam2")
+CHECKPOINT = r"C:\Users\cooll\OneDrive\Documents\SPARC\SAM checkpoints\\sam2.1_hiera_large.pt"
 MODEL_CFG = "configs/sam2.1/sam2.1_hiera_l.yaml"
 
 sys.path.insert(0, str(SAM2_ROOT))
@@ -21,7 +21,7 @@ if torch.cuda.is_available():
 model = build_sam2(
     config_file=MODEL_CFG,
     ckpt_path=CHECKPOINT,
-    device="cuda",
+    device="cpu",
 )
 
 predictor = SAM2ImagePredictor(model)

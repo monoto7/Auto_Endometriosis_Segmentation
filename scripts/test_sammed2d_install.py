@@ -3,8 +3,8 @@ import sys
 import torch
 
 
-SAMMED2D_ROOT = Path(r"F:\Models\SAM-Med2D")
-CHECKPOINT = Path(r"F:\Models\SAM-Med2D\pretrain_model\sam-med2d_b.pth")
+SAMMED2D_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\Models\\SAM-Med2d\\SAM-Med2D")
+CHECKPOINT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\SAM checkpoints\sam-med2d_b.pth")
 
 
 def main():
