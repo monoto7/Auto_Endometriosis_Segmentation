@@ -49,5 +49,5 @@ for Model in Models:
         concatSheet = pd.concat(splitSheets).T
         concatSheet = concatSheet.loc[:,~concatSheet.columns.duplicated()].copy()
         OutputSheets.append(concatSheet)
-    print(Model)
-    print(pd.concat(OutputSheets))
+
+pd.concat(OutputSheets).to_excel(RootFolder+'output.xlsx', sheet_name='Raw')
