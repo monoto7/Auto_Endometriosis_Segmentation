@@ -10,10 +10,10 @@ Splits = [
         "train",
         ]
 Models = [
-    #"SAM2",
+    "SAM2",
     "SAMMed2D",
     "MedSAM",
-    #"SurgiSAM",
+    "SurgiSAM",
     ]
 
 OutputSheets = []
@@ -50,4 +50,4 @@ for Model in Models:
         concatSheet = concatSheet.loc[:,~concatSheet.columns.duplicated()].copy()
         OutputSheets.append(concatSheet)
 
-pd.concat(OutputSheets).to_excel(RootFolder+'output.xlsx', sheet_name='Raw')
+pd.concat(OutputSheets).to_excel(RootFolder+'SummaryOfSummaries.xlsx', sheet_name='Raw')
