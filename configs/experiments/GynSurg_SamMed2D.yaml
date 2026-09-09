@@ -6,8 +6,7 @@ model_config: "configs/models/sammed2d_frozen.yaml"
 output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/SamMed2D/"
 
 splits:
-  - val
-  - test
+  - train
 
 prompt_modes:
   - GT_point

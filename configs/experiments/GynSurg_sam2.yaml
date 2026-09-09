@@ -6,8 +6,7 @@ model_config: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\Jasmin repos\\AES\\
 output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/SAM2/"
 
 splits:
-  - val
-  - test
+  - train
 
 prompt_modes:
   - GT_point

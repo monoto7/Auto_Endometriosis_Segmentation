@@ -6,8 +6,8 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
-
-class BinarySegmentationDataset(Dataset):
+#Making a higher level class to reduce code duplication
+class SegmentationDataset(Dataset):
     """
     Dataset for standardized binary segmentation folders:
 
@@ -88,6 +88,128 @@ class BinarySegmentationDataset(Dataset):
 
         mask = (mask > 0).astype(np.float32)
 
+        image, mask = self._augment(image, mask)
+
+        image = cv2.resize(
+            image,
+            (self.image_size, self.image_size),
+            interpolation=cv2.INTER_LINEAR,
+        )
+
+        mask = cv2.resize(
+            mask,
+            (self.image_size, self.image_size),
+            interpolation=cv2.INTER_NEAREST,
+        )
+
+        image = image.astype(np.float32) / 255.0
+
+        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+        image = (image - mean) / std
+
+        image_tensor = torch.from_numpy(image).permute(2, 0, 1).float()
+        mask_tensor = torch.from_numpy(mask).unsqueeze(0).float()
+
+        return {
+            "image": image_tensor,
+            "mask": mask_tensor,
+            "image_name": image_path.name,
+            "original_width": original_size[0],
+            "original_height": original_size[1],
+        }
+
+class BinarySegmentationDataset(SegmentationDataset):
+    """
+    Dataset for standardized binary segmentation folders:
+
+      split/images/*.jpg
+      split/masks/*.png
+
+    Returns:
+      image_tensor: float32, shape [3, H, W], normalized to ImageNet stats
+      mask_tensor: float32, shape [1, H, W], values {0, 1}
+      image_name
+    """
+
+
+    def __getitem__(self, index):
+        image_path = self.image_paths[index]
+        mask_path = self._find_mask_path(image_path)
+
+        image = Image.open(image_path).convert("RGB")
+        mask = Image.open(mask_path).convert("L")
+
+        original_size = image.size  # W, H
+
+        image = np.array(image)
+        mask = np.array(mask)
+
+        mask = (mask > 0).astype(np.float32)
+
+        image, mask = self._augment(image, mask)
+
+        image = cv2.resize(
+            image,
+            (self.image_size, self.image_size),
+            interpolation=cv2.INTER_LINEAR,
+        )
+
+        mask = cv2.resize(
+            mask,
+            (self.image_size, self.image_size),
+            interpolation=cv2.INTER_NEAREST,
+        )
+
+        image = image.astype(np.float32) / 255.0
+
+        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+        image = (image - mean) / std
+
+        image_tensor = torch.from_numpy(image).permute(2, 0, 1).float()
+        mask_tensor = torch.from_numpy(mask).unsqueeze(0).float()
+
+        return {
+            "image": image_tensor,
+            "mask": mask_tensor,
+            "image_name": image_path.name,
+            "original_width": original_size[0],
+            "original_height": original_size[1],
+        }
+
+class GrayscaleSegmentationDataset(SegmentationDataset):
+    """
+    Dataset for standardized binary segmentation folders:
+
+      split/images/*.jpg
+      split/masks/*.png
+
+    Returns:
+      image_tensor: float32, shape [3, H, W], normalized to ImageNet stats
+      mask_tensor: float32, shape [1, H, W], values [0, 1]
+      image_name
+    """
+
+
+    def __getitem__(self, index):
+        image_path = self.image_paths[index]
+        mask_path = self._find_mask_path(image_path)
+
+        image = Image.open(image_path).convert("RGB")
+        mask = Image.open(mask_path).convert("L")
+
+        original_size = image.size  # W, H
+
+        image = np.array(image)
+        mask = np.array(mask)
+
+        #TODO decide whether to scale values in mask between 0-1, likely needs to actually be integer values for segformer
+        #Behaviour might have to be different for different models, needs to be looked into once segformer works as a proof of concept.
+        mask = mask.astype(np.float32)/255.0
+        
         image, mask = self._augment(image, mask)
 
         image = cv2.resize(

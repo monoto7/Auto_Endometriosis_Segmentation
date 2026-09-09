@@ -16,9 +16,11 @@ from PIL import Image
 from torch.utils.data import DataLoader
 
 from src.datasets.segmentation_dataset import BinarySegmentationDataset
+from src.datasets.segmentation_dataset import GrayscaleSegmentationDataset
 from src.models.segformer.segformer_model import build_segformer_model
 from src.evaluation.metrics import compute_binary_metrics
 from src.utils.visualization import save_overlay
+
 
 
 def load_yaml(path):
@@ -97,6 +99,15 @@ def probability_to_binary_mask(probability_map, threshold, postprocessing_cfg):
 
     return binary_mask
 
+def probability_to_mask(probability_map, threshold, postprocessing_cfg, classValue):
+    mask = (probability_map >= threshold).astype(np.uint8) * classValue
+
+    if postprocessing_cfg.get("remove_small_components", False):
+        min_area_px = int(postprocessing_cfg.get("min_component_area_px", 0))
+        mask = remove_small_components(mask, min_area_px)
+
+    return mask
+
 
 def find_original_image_path(images_dir: Path, image_name: str) -> Path:
     direct = images_dir / image_name
@@ -132,6 +143,13 @@ def load_binary_mask(mask_path: Path):
     mask_np = np.array(mask)
 
     return (mask_np > 0).astype(np.uint8) * 255
+
+#handling for grayscale masks
+def load_mask(mask_path: Path):
+    mask = Image.open(mask_path).convert("L")
+    mask_np = np.array(mask)
+
+    return mask_np
 
 
 def train_one_epoch(model, dataloader, optimizer, device, loss_cfg):
@@ -204,9 +222,10 @@ def validate_one_epoch(
 
         probs = torch.sigmoid(logits).detach().cpu().numpy()
         masks_np = masks.detach().cpu().numpy()
-
+        #TODO REmove below, just for testing
+        print(probs.shape)
         for i in range(probs.shape[0]):
-            pred_mask = probability_to_binary_mask(
+            pred_mask = probability_to_mask(
                 probability_map=probs[i, 0],
                 threshold=threshold,
                 postprocessing_cfg=postprocessing_cfg,
@@ -326,7 +345,8 @@ def collect_probabilities_for_split(
 
         for i, image_name in enumerate(image_names):
             mask_path = find_original_mask_path(masks_dir, image_name)
-            gt_mask = load_binary_mask(mask_path)
+            #Load mask instead of binary mask since preprocessing already handles binarization where desired
+            gt_mask = load_mask(mask_path)
 
             original_h, original_w = gt_mask.shape
 
@@ -358,7 +378,7 @@ def run_threshold_sweep(records, thresholds, postprocessing_cfg):
         metric_rows = []
 
         for record in records:
-            pred_mask = probability_to_binary_mask(
+            pred_mask = probability_to_mask(
                 probability_map=record["probability_map"],
                 threshold=float(threshold),
                 postprocessing_cfg=postprocessing_cfg,
@@ -491,8 +511,10 @@ def evaluate_records_and_save(
         image_path = record["image_path"]
         mask_path = record["mask_path"]
         gt_mask = record["gt_mask"]
+        #TODO implement value to save masks based upon colourvalue rather than binary
+        #colourVal = record["mask"]
 
-        pred_mask = probability_to_binary_mask(
+        pred_mask = probability_to_mask(
             probability_map=record["probability_map"],
             threshold=threshold,
             postprocessing_cfg=postprocessing_cfg,
@@ -649,21 +671,32 @@ def train_and_evaluate(experiment_config_path):
     val_cfg = dataset_cfg["splits"][val_split]
     test_cfg = dataset_cfg["splits"][test_split]
 
-    train_dataset = BinarySegmentationDataset(
+    #Allow experiment config to override model config
+    num_labels = model_cfg.get("num_labels", 1)
+    num_labels = exp_cfg.get("num_labels", num_labels)
+
+
+    #Choose dataset loader based upon number of labels to prevent binarization
+    Dataset = BinarySegmentationDataset
+
+    if num_labels > 1:
+        Dataset = GrayscaleSegmentationDataset
+
+    train_dataset = Dataset(
         images_dir=dataset_root / train_cfg["images"],
         masks_dir=dataset_root / train_cfg["masks"],
         image_size=image_size,
         augment=True,
     )
 
-    val_dataset = BinarySegmentationDataset(
+    val_dataset = Dataset(
         images_dir=dataset_root / val_cfg["images"],
         masks_dir=dataset_root / val_cfg["masks"],
         image_size=image_size,
         augment=False,
     )
 
-    test_dataset = BinarySegmentationDataset(
+    test_dataset = Dataset(
         images_dir=dataset_root / test_cfg["images"],
         masks_dir=dataset_root / test_cfg["masks"],
         image_size=image_size,
@@ -694,9 +727,10 @@ def train_and_evaluate(experiment_config_path):
         pin_memory=True,
     )
 
+    #Moved num_labels reading earlier to allow for its use in determining other behaviour
     model = build_segformer_model(
         pretrained_model_name=model_cfg.get("pretrained_model_name", "nvidia/mit-b2"),
-        num_labels=int(model_cfg.get("num_labels", 1)),
+        num_labels=int(num_labels),
     )
 
     model.to(device)

@@ -1,0 +1,18 @@
+experiment_name: "GynSurg_YOLO11s_seg"
+
+dataset_config: "configs/datasets/GynSurg.yaml"
+model_config: "configs/models/yolo11s_seg.yaml"
+
+yolo_dataset_yaml: "F:/Datasets/YOLO datasets/GLENDA_yolo_seg/glenda_yolo_seg.yaml"
+
+output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/yolo11/trained/"
+
+splits:
+  train: train
+  val: val
+  test: test
+
+save:
+  merged_masks: true
+  overlays: true
+  auto_box_prompts: true

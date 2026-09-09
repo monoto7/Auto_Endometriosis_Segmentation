@@ -21,8 +21,8 @@ CONFIGS_TO_RUN = [
     #PROJECT_ROOT / "configs" / "experiments" / "enid_sam2_frozen_oracle.yaml",
     #PROJECT_ROOT / "configs" / "experiments" / "glenda_sam2_frozen_oracle.yaml",
     #PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_sam2_frozen_oracle.yaml",
-    #PROJECT_ROOT / "configs" / "experiments" / "GynSurg_sam2.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "Fluoro_sam2.yaml",
+    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_sam2.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "Fluoro_sam2.yaml",
 ]
 
 # Example: run only ENID

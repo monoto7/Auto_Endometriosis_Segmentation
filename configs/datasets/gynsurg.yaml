@@ -17,3 +17,5 @@ splits:
     images: "test/images"
     masks: "test/masks"
     prompts: "oracle_prompts/GynSurg_test_oracle_prompts.csv"
+  
+classes: ['85','170','255']

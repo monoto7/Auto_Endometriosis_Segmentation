@@ -42,8 +42,9 @@ DATASETS_TO_VISUALIZE = [
 ]
 
 SPLITS_TO_VISUALIZE = [
-    "val",
-    "test",
+    #"val",
+    #"test",
+    "train"
 ]
 
 

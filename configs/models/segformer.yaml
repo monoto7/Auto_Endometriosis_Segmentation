@@ -10,7 +10,7 @@ image_size: 512
 batch_size: 4
 num_workers: 4
 
-epochs: 100
+epochs: 2
 learning_rate: 0.00006
 weight_decay: 0.00001
 

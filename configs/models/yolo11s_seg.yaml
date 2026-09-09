@@ -2,7 +2,7 @@ model_name: YOLO11s_seg
 training_state: trained
 
 architecture: "YOLO instance segmentation"
-pretrained_model: "F:/Results/SAM_Benchmarking/_pretrained_weights/YOLO/yolo11s-seg.pt"
+pretrained_model: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/YOLO/yolo11s-seg.pt"
 
 imgsz: 640
 epochs: 100

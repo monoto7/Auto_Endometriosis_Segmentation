@@ -2,8 +2,8 @@ import pandas as pd
 import glob
 
 
-RootFolder = "C:\\Users\\Administrator\\Desktop\\"
-Dataset = "GynSurg"
+RootFolder = "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\OrganSegmentationTesting\\Fluoro\\"
+Dataset = "Fluoro"
 Splits = [
         "test",
         "val",
@@ -24,8 +24,9 @@ for Model in Models:
         ClassIds = []
         splitSheets = []
         prefix = RootFolder+Model+"\\visualize_metrics\\"+Dataset+"_"+split+"_"
-        xlsxFiles = glob.glob(prefix+"*_summary_statistics.xlsx")
+        xlsxFiles = glob.glob(prefix+"*summary_statistics.xlsx")
         if(len(xlsxFiles)) == 0:
+            print("no xlsx files found for " + prefix)
             continue
         for file in xlsxFiles:
             classId = file[len(prefix):-len("_summary_statistics.xlsx")]
@@ -37,6 +38,7 @@ for Model in Models:
             ClassIds.append(classId)
             files[classId] = file
         ClassIds.sort()
+        print(ClassIds)
         for classId in ClassIds:
             sheet = pd.read_excel(files[classId])
             if classId == "":
@@ -49,5 +51,4 @@ for Model in Models:
         concatSheet = pd.concat(splitSheets).T
         concatSheet = concatSheet.loc[:,~concatSheet.columns.duplicated()].copy()
         OutputSheets.append(concatSheet)
-
 pd.concat(OutputSheets).to_excel(RootFolder+'SummaryOfSummaries.xlsx', sheet_name='Raw')

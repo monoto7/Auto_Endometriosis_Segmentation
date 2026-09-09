@@ -14,7 +14,7 @@ CONFIGS_TO_RUN = [
     #PROJECT_ROOT / "configs" / "experiments" / "enid_sammed2d_frozen_oracle.yaml",
     #PROJECT_ROOT / "configs" / "experiments" / "glenda_sammed2d_frozen_oracle.yaml",
     #PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_sammed2d_frozen_oracle.yaml",
-    #PROJECT_ROOT / "configs" / "experiments" / "GynSurg_SamMed2D.yaml",
+    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_SamMed2D.yaml",
     #PROJECT_ROOT / "configs" / "experiments" / "Fluoro_sammed2D.yaml",
 ]
 
@@ -37,8 +37,9 @@ DATASETS_TO_VISUALIZE = [
 ]
 
 SPLITS_TO_VISUALIZE = [
-    "val",
-    "test",
+    #"val",
+    #"test",
+    "train",
 ]
 
 
