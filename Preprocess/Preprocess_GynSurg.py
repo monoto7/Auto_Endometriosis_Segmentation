@@ -148,31 +148,23 @@ def split_cases(grouped_pairs):
     return split_dict
 
 
-def convert_gynsurg_mask_to_binary(mask_path: Path) -> Image.Image:
+def convert_gynsurg_mask(mask_path: Path, class_name = None) -> Image.Image:
     """
     Dummy function to simply save in the same place and retain similar structure to other functions, to be refactored
 
     gynsurg colors TBD!:
-      background:       0 0 0
-      Endo-Peritoneum:  190 62 204
-      Endo-Ovar:        93 89 254
-      Endo-TIE:         145 210 138
-      Endo-Uterus:      238 236 50
+      background: 0
+      Uterus:  85
+      Ovaries:  255
+      FallopianTubes: 170
+      
 
-    Output:
-      background = 0
-      pathology  = 255
-
-    Since we want binary endometriosis/pathology vs background,
-    all non-black pixels are treated as foreground.
-
-    This handles both filled masks and box-like annotations, because any
-    colored annotation pixel becomes white foreground.
     """
     mask = Image.open(mask_path).convert("L")
     mask_np = np.array(mask)
-
-    #binary = np.any(mask_np > 0, axis=-1).astype(np.uint8) * 255
+    #If class is given, select it and convert to binary mask
+    if class_name is not None:
+        mask_np = np.any(mask_np == int(class_name), axis=-1).astype(np.uint8) * 255
 
     return Image.fromarray(mask_np, mode="L")
 
@@ -187,15 +179,21 @@ def prepare_output_dirs():
     for split_name in ["train", "val", "test"]:
         (OUT_ROOT / split_name / "images").mkdir(parents=True, exist_ok=True)
         (OUT_ROOT / split_name / "masks").mkdir(parents=True, exist_ok=True)
+        for class_name in ["85","170","255"]:
+            (OUT_ROOT / class_name / split_name / "masks").mkdir(parents=True, exist_ok=True)
 
 
-def process_split(split_name: str, pairs):
+def process_split(split_name: str, pairs, class_name = None):
     """
     Copies images and saves binary masks for a split.
     """
+    
     images_out = OUT_ROOT / split_name / "images"
     masks_out = OUT_ROOT / split_name / "masks"
-
+    if(class_name is not None):
+        #Handle class seperation
+        images_out = OUT_ROOT / class_name / split_name / "images"
+        masks_out = OUT_ROOT / class_name / split_name / "masks"
     processed = 0
     failed = []
 
@@ -208,7 +206,7 @@ def process_split(split_name: str, pairs):
             shutil.copy2(image_path, image_dst)
 
             # Convert multi-class or box-like colored annotation to binary mask.
-            binary_mask = convert_gynsurg_mask_to_binary(mask_path)
+            binary_mask = convert_gynsurg_mask(mask_path)
             binary_mask.save(mask_dst)
 
             processed += 1
@@ -340,7 +338,10 @@ def main():
     process_split("train", split_dict["train"])
     process_split("val", split_dict["val"])
     process_split("test", split_dict["test"])
-
+    for class_name in ["85","170","255"]:
+        process_split("train", split_dict["train"],class_name)
+        process_split("val", split_dict["val"],class_name)
+        process_split("test", split_dict["test"],class_name)
     sanity_check_output()
 
     print("\nDone.")
