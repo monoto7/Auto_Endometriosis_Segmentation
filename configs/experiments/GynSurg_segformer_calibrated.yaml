@@ -1,0 +1,23 @@
+experiment_name: "GynSurg_SegFormer_Calibrated_EvalOnly"
+
+dataset_config: "configs/datasets/gynsurg.yaml"
+model_config: "configs/models/segformer.yaml"
+
+source_checkpoint: "C:/Users/Administrator/Documents/SPARC/OrganSegmentationTesting/GynSurg/SegFormer/trained/checkpoints/best_SegFormer.pt"
+source_output_root: "C:/Users/Administrator/Documents/SPARC/OrganSegmentationTesting/GynSurg/SegFormer/trained"
+
+output_root: "C:/Users/Administrator/Documents/SPARC/OrganSegmentationTesting/GynSurg/SegFormer_calibrated/trained"
+
+splits:
+  val: val
+  test: test
+
+threshold_sweep:
+  enabled: true
+  values: [0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50]
+  choose_metric: "dice"
+  use_best_threshold_for_final_eval: true
+
+save:
+  merged_masks: true
+  overlays: true

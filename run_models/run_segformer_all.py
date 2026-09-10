@@ -8,7 +8,7 @@ from src.runners.run_segformer import train_and_evaluate
 from src.evaluation.visualize_metrics import visualize_dataset_model_split
 
 
-RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
+RESULTS_ROOT = Path(r"C:\Users\Administrator\Documents\SPARC\\OrganSegmentationTesting\\")
 
 CONFIGS_TO_RUN = [
     #PROJECT_ROOT / "configs" / "experiments" / "enid_segformer_trained.yaml",

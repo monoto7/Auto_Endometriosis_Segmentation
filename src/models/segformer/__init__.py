@@ -1,1 +1,2 @@
-from src.models.segformer.segformer_model import build_segformer_model
+from src.models.segformer.segformer_model import build_segformer_model_binary
+from src.models.segformer.segformer_model import build_segformer_model_multiclass

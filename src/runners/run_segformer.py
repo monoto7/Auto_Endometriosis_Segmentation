@@ -17,8 +17,10 @@ from torch.utils.data import DataLoader
 
 from src.datasets.segmentation_dataset import BinarySegmentationDataset
 from src.datasets.segmentation_dataset import GrayscaleSegmentationDataset
-from src.models.segformer.segformer_model import build_segformer_model
+from src.models.segformer.segformer_model import build_segformer_model_multiclass
+from src.models.segformer.segformer_model import build_segformer_model_binary
 from src.evaluation.metrics import compute_binary_metrics
+from src.evaluation.metrics import compute_multiclass_metrics
 from src.utils.visualization import save_overlay
 
 
@@ -55,12 +57,33 @@ def dice_loss_from_logits(logits, targets, eps=1e-7):
 
     return 1.0 - dice.mean()
 
+def dice_loss_from_logits_multiclass(logits, targets, eps=1e-7):
+    probs = torch.softmax(logits,dim=1)
+
+    #Need to handle each class seperately, so only final 2 are summed over
+    dims = (2, 3)
+
+    #Switch targets to be one_hot_encoded in each class
+    one_hot_targets = torch.nn.functional.one_hot(targets, num_classes=logits.shape[1]).permute(0, 3, 1, 2).float()
+
+    intersection = torch.sum(probs * one_hot_targets, dims)
+    cardinality = torch.sum(probs + one_hot_targets, dims)
+
+    dice = (2.0 * intersection + eps) / (cardinality + eps)
+
+    return 1.0 - dice.mean()
 
 def combined_loss(logits, targets, dice_weight=0.5, bce_weight=0.5):
     dice = dice_loss_from_logits(logits, targets)
     bce = torch_functional.binary_cross_entropy_with_logits(logits, targets)
 
     return dice_weight * dice + bce_weight * bce
+
+def combined_multiclass_loss(logits, targets, dice_weight=0.5, ce_weight=0.5):
+    dice = dice_loss_from_logits_multiclass(logits, targets)
+    ce = torch_functional.cross_entropy(logits, targets)
+
+    return dice_weight * dice + ce_weight * ce
 
 
 def save_binary_mask(mask: np.ndarray, output_path: Path):
@@ -99,12 +122,17 @@ def probability_to_binary_mask(probability_map, threshold, postprocessing_cfg):
 
     return binary_mask
 
-def probability_to_mask(probability_map, threshold, postprocessing_cfg, classValue):
-    mask = (probability_map >= threshold).astype(np.uint8) * classValue
+#Used instead so multiclass is supported, should still support binary
+def probability_to_mask(probability_map, threshold, postprocessing_cfg, classes):
+    mask = np.zeros(probability_map[0].shape)
+    print(f"probability map shape: {probability_map.shape}")
+    for i in range(probability_map.shape[0]-1):
+        mask[probability_map[i+1] >= threshold] = int(classes[i])
 
-    if postprocessing_cfg.get("remove_small_components", False):
-        min_area_px = int(postprocessing_cfg.get("min_component_area_px", 0))
-        mask = remove_small_components(mask, min_area_px)
+        #TODO fix below so it works with multiclass
+        if postprocessing_cfg.get("remove_small_components", False):
+            min_area_px = int(postprocessing_cfg.get("min_component_area_px", 0))
+            mask = remove_small_components(mask, min_area_px)
 
     return mask
 
@@ -169,11 +197,11 @@ def train_one_epoch(model, dataloader, optimizer, device, loss_cfg):
             target_size=masks.shape[-2:],
         )
 
-        loss = combined_loss(
+        loss = combined_multiclass_loss(
             logits=logits,
             targets=masks,
             dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
-            bce_weight=float(loss_cfg.get("bce_weight", 0.5)),
+            ce_weight=float(loss_cfg.get("bce_weight", 0.5)),
         )
 
         loss.backward()
@@ -211,21 +239,21 @@ def validate_one_epoch(
             target_size=masks.shape[-2:],
         )
 
-        loss = combined_loss(
+        loss = combined_multiclass_loss(
             logits=logits,
             targets=masks,
             dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
-            bce_weight=float(loss_cfg.get("bce_weight", 0.5)),
+            ce_weight=float(loss_cfg.get("bce_weight", 0.5)),
         )
 
         losses.append(float(loss.detach().cpu().item()))
 
         probs = torch.sigmoid(logits).detach().cpu().numpy()
         masks_np = masks.detach().cpu().numpy()
-        #TODO REmove below, just for testing
-        print(probs.shape)
+
+        #TODO rework below, though it's not used for training so maybe can ignore for now
         for i in range(probs.shape[0]):
-            pred_mask = probability_to_mask(
+            pred_mask = probability_to_binary_mask(
                 probability_map=probs[i, 0],
                 threshold=threshold,
                 postprocessing_cfg=postprocessing_cfg,
@@ -342,26 +370,29 @@ def collect_probabilities_for_split(
         )
 
         probs = torch.sigmoid(logits).detach().cpu().numpy()
-
         for i, image_name in enumerate(image_names):
             mask_path = find_original_mask_path(masks_dir, image_name)
             #Load mask instead of binary mask since preprocessing already handles binarization where desired
             gt_mask = load_mask(mask_path)
 
-            original_h, original_w = gt_mask.shape
 
-            probability_map = cv2.resize(
-                probs[i, 0],
-                (original_w, original_h),
-                interpolation=cv2.INTER_LINEAR,
-            )
+            #Rescale each given probability mask
+            #May behave strangely with multiple classes and linear interpolation, unsure.
+            original_h, original_w = gt_mask.shape
+            rescaled = np.zeros((probs.shape[1],original_h,original_w))
+            for y in range(probs.shape[1]):
+                rescaled[y] = cv2.resize(
+                    probs[i, y],
+                    (original_w, original_h),
+                    interpolation=cv2.INTER_LINEAR,
+                )
 
             image_path = find_original_image_path(images_dir, image_name)
 
             records.append(
                 {
                     "image_name": image_name,
-                    "probability_map": probability_map,
+                    "probability_map": rescaled,
                     "gt_mask": gt_mask,
                     "image_path": image_path,
                     "mask_path": mask_path,
@@ -371,7 +402,7 @@ def collect_probabilities_for_split(
     return records
 
 
-def run_threshold_sweep(records, thresholds, postprocessing_cfg):
+def run_threshold_sweep(records, thresholds, postprocessing_cfg, classes = ["255"]):
     rows = []
 
     for threshold in thresholds:
@@ -382,14 +413,20 @@ def run_threshold_sweep(records, thresholds, postprocessing_cfg):
                 probability_map=record["probability_map"],
                 threshold=float(threshold),
                 postprocessing_cfg=postprocessing_cfg,
+                #classes added to support multiclass
+                classes = classes,
             )
 
-            metrics = compute_binary_metrics(
-                pred_mask=pred_mask,
-                gt_mask=record["gt_mask"],
-            )
+            for i in classes:
+                metrics = compute_multiclass_metrics(
+                    pred_mask= (pred_mask[int(i)]==int(i)).astype(int),
+                    gt_mask=record["gt_mask"],
+                    class_g_value=int(i)
+                )
+                metric_rows.append(metrics)
+            
 
-            metric_rows.append(metrics)
+            
 
         metric_df = pd.DataFrame(metric_rows)
 
@@ -493,6 +530,7 @@ def evaluate_records_and_save(
     postprocessing_cfg,
     save_cfg,
     inference_time_ms_per_image=None,
+    classes = ["255"],
 ):
     prompt_mode = "No_prompt"
 
@@ -518,6 +556,7 @@ def evaluate_records_and_save(
             probability_map=record["probability_map"],
             threshold=threshold,
             postprocessing_cfg=postprocessing_cfg,
+            classes = classes
         )
 
         merged_name = f"{Path(image_name).stem}.png"
@@ -535,11 +574,20 @@ def evaluate_records_and_save(
                 pred_mask=pred_mask,
                 output_path=overlay_path,
             )
-
-        metrics = compute_binary_metrics(
-            pred_mask=pred_mask,
-            gt_mask=gt_mask,
-        )
+        metrics = None
+        if(len.classes()==1):
+            metrics = compute_binary_metrics(
+                pred_mask=pred_mask,
+                gt_mask=gt_mask,
+            )
+        else:
+            for class_name in classes:
+                #TODO needs rework to properly support below
+                metrics = compute_multiclass_metrics(
+                    pred_mask=pred_mask,
+                    gt_mask=gt_mask,
+                    class_g_value=class_name
+                )
 
         inference_rows.append(
             {
@@ -654,6 +702,7 @@ def train_and_evaluate(experiment_config_path):
         else "cpu"
     )
 
+    
     image_size = int(model_cfg.get("image_size", 512))
     batch_size = int(model_cfg.get("batch_size", 4))
     num_workers = int(model_cfg.get("num_workers", 4))
@@ -675,18 +724,20 @@ def train_and_evaluate(experiment_config_path):
     num_labels = model_cfg.get("num_labels", 1)
     num_labels = exp_cfg.get("num_labels", num_labels)
 
-
     #Choose dataset loader based upon number of labels to prevent binarization
     Dataset = BinarySegmentationDataset
 
     if num_labels > 1:
         Dataset = GrayscaleSegmentationDataset
+    classes = dataset_cfg.get("classes", ["255"])
+    
 
     train_dataset = Dataset(
         images_dir=dataset_root / train_cfg["images"],
         masks_dir=dataset_root / train_cfg["masks"],
         image_size=image_size,
         augment=True,
+        classes = classes
     )
 
     val_dataset = Dataset(
@@ -694,6 +745,7 @@ def train_and_evaluate(experiment_config_path):
         masks_dir=dataset_root / val_cfg["masks"],
         image_size=image_size,
         augment=False,
+        classes = classes
     )
 
     test_dataset = Dataset(
@@ -701,6 +753,7 @@ def train_and_evaluate(experiment_config_path):
         masks_dir=dataset_root / test_cfg["masks"],
         image_size=image_size,
         augment=False,
+        classes = classes
     )
 
     train_loader = DataLoader(
@@ -728,6 +781,10 @@ def train_and_evaluate(experiment_config_path):
     )
 
     #Moved num_labels reading earlier to allow for its use in determining other behaviour
+    build_segformer_model = build_segformer_model_binary
+    if(num_labels>1):
+        build_segformer_model = build_segformer_model_multiclass
+
     model = build_segformer_model(
         pretrained_model_name=model_cfg.get("pretrained_model_name", "nvidia/mit-b2"),
         num_labels=int(num_labels),
@@ -787,6 +844,7 @@ def train_and_evaluate(experiment_config_path):
     print("=" * 100)
 
     for epoch in range(1, epochs + 1):
+        break
         current_lr = float(optimizer.param_groups[0]["lr"])
 
         train_loss = train_one_epoch(
@@ -866,15 +924,15 @@ def train_and_evaluate(experiment_config_path):
             )
             break
 
-    torch.save(
-        {
-            "model_state_dict": model.state_dict(),
-            "model_cfg": model_cfg,
-            "epoch": history_rows[-1]["epoch"],
-            "best_val_dice": best_val_dice,
-        },
-        last_checkpoint_path,
-    )
+    #torch.save(
+    #    {
+    #        "model_state_dict": model.state_dict(),
+    #        "model_cfg": model_cfg,
+    #        "epoch": history_rows[-1]["epoch"],
+    #        "best_val_dice": best_val_dice,
+    #    },
+    #    last_checkpoint_path,
+    #)
 
     checkpoint = torch.load(
         best_checkpoint_path,
@@ -910,6 +968,8 @@ def train_and_evaluate(experiment_config_path):
             records=val_records,
             thresholds=threshold_values,
             postprocessing_cfg=postprocessing_cfg,
+            #Classes added to support multiclass
+            classes=classes,
         )
 
         save_threshold_sweep(threshold_df, output_root)
@@ -963,6 +1023,7 @@ def train_and_evaluate(experiment_config_path):
         postprocessing_cfg=postprocessing_cfg,
         save_cfg=save_cfg,
         inference_time_ms_per_image=val_inference_time,
+        classes=classes,
     )
 
     test_records = collect_probabilities_for_split(
@@ -983,6 +1044,7 @@ def train_and_evaluate(experiment_config_path):
         postprocessing_cfg=postprocessing_cfg,
         save_cfg=save_cfg,
         inference_time_ms_per_image=test_inference_time,
+        classes=classes
     )
 
     print(f"{model_name} training and evaluation finished.")

@@ -26,11 +26,13 @@ class SegmentationDataset(Dataset):
         masks_dir,
         image_size=512,
         augment=False,
+        classes=["255"]
     ):
         self.images_dir = Path(images_dir)
         self.masks_dir = Path(masks_dir)
         self.image_size = int(image_size)
         self.augment = bool(augment)
+        self.classes=classes
 
         if not self.images_dir.exists():
             raise FileNotFoundError(f"Images folder not found: {self.images_dir}")
@@ -145,7 +147,6 @@ class BinarySegmentationDataset(SegmentationDataset):
 
         image = np.array(image)
         mask = np.array(mask)
-
         mask = (mask > 0).astype(np.float32)
 
         image, mask = self._augment(image, mask)
@@ -193,7 +194,6 @@ class GrayscaleSegmentationDataset(SegmentationDataset):
       image_name
     """
 
-
     def __getitem__(self, index):
         image_path = self.image_paths[index]
         mask_path = self._find_mask_path(image_path)
@@ -206,10 +206,15 @@ class GrayscaleSegmentationDataset(SegmentationDataset):
         image = np.array(image)
         mask = np.array(mask)
 
+
+
         #TODO decide whether to scale values in mask between 0-1, likely needs to actually be integer values for segformer
         #Behaviour might have to be different for different models, needs to be looked into once segformer works as a proof of concept.
-        mask = mask.astype(np.float32)/255.0
         
+        maskRescaled = np.zeros(mask.shape)
+        for i in range(len(self.classes)):
+            maskRescaled[mask == int(self.classes[i])] = i+1
+        mask = maskRescaled
         image, mask = self._augment(image, mask)
 
         image = cv2.resize(
@@ -232,7 +237,9 @@ class GrayscaleSegmentationDataset(SegmentationDataset):
         image = (image - mean) / std
 
         image_tensor = torch.from_numpy(image).permute(2, 0, 1).float()
-        mask_tensor = torch.from_numpy(mask).unsqueeze(0).float()
+
+        #mask_tensor = torch.from_numpy(mask).unsqueeze(0).float()
+        mask_tensor = torch.from_numpy(mask).long()
 
         return {
             "image": image_tensor,

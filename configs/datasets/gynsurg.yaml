@@ -1,6 +1,6 @@
 dataset_name: GynSurg
 
-dataset_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/SplitDatasets/GynSurg"
+dataset_root: "C:\\Users\\Administrator\\Documents\\SPARC\\SplitDatasets\\GynSurg"
 
 splits:
   train:
@@ -18,4 +18,4 @@ splits:
     masks: "test/masks"
     prompts: "oracle_prompts/GynSurg_test_oracle_prompts.csv"
   
-classes: ['85','170','255']
+classes: [85,170,255]

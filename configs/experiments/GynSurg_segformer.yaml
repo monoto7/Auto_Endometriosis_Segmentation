@@ -1,7 +1,7 @@
 experiment_name: "GLENDA_SegFormer_Trained"
 dataset_config: "configs/datasets/gynsurg.yaml"
 model_config: "configs/models/segformer.yaml"
-output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/segformer/trained/"
+output_root: "C:\\Users\\Administrator\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/segformer/trained/"
 
 splits:
   train: train
@@ -12,4 +12,4 @@ save:
   merged_masks: true
   overlays: true
 
-num_labels: 3
+num_labels: 4
