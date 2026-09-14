@@ -23,7 +23,7 @@ ANNOTS_DIR = Path(
 
 # --- Output folder ---
 OUT_ROOT = Path(
-    r"C:\Users\cooll\OneDrive\Documents\SPARC\SplitDatasets\GynSurg"
+    r"C:\Users\cooll\OneDrive\Documents\SPARC\SplitDatasets\GynSurg_ClassSplit"
 )
 
 # --- Split settings ---
@@ -164,7 +164,7 @@ def convert_gynsurg_mask(mask_path: Path, class_name = None) -> Image.Image:
     mask_np = np.array(mask)
     #If class is given, select it and convert to binary mask
     if class_name is not None:
-        mask_np = np.any(mask_np == int(class_name), axis=-1).astype(np.uint8) * 255
+        mask_np = (mask_np == int(class_name)).astype(np.uint8) * 255
 
     return Image.fromarray(mask_np, mode="L")
 
@@ -180,6 +180,7 @@ def prepare_output_dirs():
         (OUT_ROOT / split_name / "images").mkdir(parents=True, exist_ok=True)
         (OUT_ROOT / split_name / "masks").mkdir(parents=True, exist_ok=True)
         for class_name in ["85","170","255"]:
+            (OUT_ROOT / class_name / split_name / "images").mkdir(parents=True, exist_ok=True)
             (OUT_ROOT / class_name / split_name / "masks").mkdir(parents=True, exist_ok=True)
 
 
@@ -206,7 +207,7 @@ def process_split(split_name: str, pairs, class_name = None):
             shutil.copy2(image_path, image_dst)
 
             # Convert multi-class or box-like colored annotation to binary mask.
-            binary_mask = convert_gynsurg_mask(mask_path)
+            binary_mask = convert_gynsurg_mask(mask_path, class_name=class_name)
             binary_mask.save(mask_dst)
 
             processed += 1
