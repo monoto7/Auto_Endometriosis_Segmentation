@@ -125,7 +125,6 @@ def probability_to_binary_mask(probability_map, threshold, postprocessing_cfg):
 #Used instead so multiclass is supported, should still support binary
 def probability_to_mask(probability_map, threshold, postprocessing_cfg, classes):
     mask = np.zeros(probability_map[0].shape)
-    print(f"probability map shape: {probability_map.shape}")
     for i in range(probability_map.shape[0]-1):
         mask[probability_map[i+1] >= threshold] = int(classes[i])
 
@@ -575,7 +574,7 @@ def evaluate_records_and_save(
                 output_path=overlay_path,
             )
         metrics = None
-        if(len.classes()==1):
+        if(True or len(classes)==1):
             metrics = compute_binary_metrics(
                 pred_mask=pred_mask,
                 gt_mask=gt_mask,
@@ -844,7 +843,6 @@ def train_and_evaluate(experiment_config_path):
     print("=" * 100)
 
     for epoch in range(1, epochs + 1):
-        break
         current_lr = float(optimizer.param_groups[0]["lr"])
 
         train_loss = train_one_epoch(
@@ -924,15 +922,15 @@ def train_and_evaluate(experiment_config_path):
             )
             break
 
-    #torch.save(
-    #    {
-    #        "model_state_dict": model.state_dict(),
-    #        "model_cfg": model_cfg,
-    #        "epoch": history_rows[-1]["epoch"],
-    #        "best_val_dice": best_val_dice,
-    #    },
-    #    last_checkpoint_path,
-    #)
+    torch.save(
+        {
+            "model_state_dict": model.state_dict(),
+            "model_cfg": model_cfg,
+            "epoch": history_rows[-1]["epoch"],
+            "best_val_dice": best_val_dice,
+        },
+        last_checkpoint_path,
+    )
 
     checkpoint = torch.load(
         best_checkpoint_path,
