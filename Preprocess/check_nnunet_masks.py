@@ -11,6 +11,7 @@ DATASETS = [
     "Dataset501_ENID",
     "Dataset502_GLENDA",
     "Dataset503_GLENDA_clean",
+    "Dataset504_GynSurg"
 ]
 
 LABEL_FOLDERS = [

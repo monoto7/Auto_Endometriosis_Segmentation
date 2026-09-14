@@ -37,6 +37,14 @@ DATASETS = [
         "yolo_root": Path(r"F:\Datasets\YOLO datasets\GLENDA_clean_yolo_seg"),
         "yaml_name": "glenda_clean_yolo_seg.yaml",
     },
+    {
+        "dataset_name": "GynSurg",
+        "standardized_root": Path(
+            r"C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\SplitDatasets\\GynSurg"
+        ),
+        "yolo_root": Path(r"C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\YOLO datasets\GynSurg_yolo_seg"),
+        "yaml_name": "GynSurg_yolo_seg.yaml",
+    },
 ]
 
 SPLITS = ["train", "val", "test"]
@@ -63,6 +71,13 @@ def load_binary_mask(mask_path: Path) -> np.ndarray:
     mask_np = np.array(mask)
 
     return (mask_np > 0).astype(np.uint8)
+
+#Implemented to support multiclass contexts
+def load_mask(mask_path: Path) -> np.ndarray:
+    mask = Image.open(mask_path).convert("L")
+    mask_np = np.array(mask)
+
+    return mask_np
 
 
 def contour_to_normalized_polygon(contour, width: int, height: int):

@@ -1,0 +1,15 @@
+experiment_name: "GynSurg_DeepLabV3Plus_Trained"
+
+dataset_config: "configs/datasets/GynSurg.yaml"
+model_config: "configs/models/deeplabv3plus.yaml"
+
+output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/DeepLabV3Plus/trained"
+
+splits:
+  train: train
+  val: val
+  test: test
+
+save:
+  merged_masks: true
+  overlays: true

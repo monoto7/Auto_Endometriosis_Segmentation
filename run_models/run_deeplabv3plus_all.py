@@ -12,9 +12,10 @@ from src.evaluation.visualize_metrics import visualize_dataset_model_split
 RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
 
 CONFIGS_TO_RUN = [
-    PROJECT_ROOT / "configs" / "experiments" / "enid_deeplabv3plus_trained.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "glenda_deeplabv3plus_trained.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_deeplabv3plus_trained.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "enid_deeplabv3plus_trained.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "glenda_deeplabv3plus_trained.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_deeplabv3plus_trained.yaml",
+    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_deeplabv3plus_trained.yaml",
 ]
 
 # Debug: run only ENID
@@ -33,9 +34,10 @@ CONFIGS_TO_RUN = [
 # ]
 
 DATASETS_TO_VISUALIZE = [
-    "ENID",
-    "GLENDA",
-    "GLENDA_clean",
+    #"ENID",
+    #"GLENDA",
+    #"GLENDA_clean",
+    "GynSurg"
 ]
 
 SPLITS_TO_VISUALIZE = [

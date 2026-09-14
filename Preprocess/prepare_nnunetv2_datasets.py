@@ -44,6 +44,21 @@ DATASETS = [
         ),
         "nnunet_name": "GLENDA_clean",
     },
+    {
+        "dataset_id": 504,
+        "dataset_name": "GynSurg",
+        "standardized_root": Path(
+            r"C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\SplitDatasets\\GynSurg"
+        ),
+        "nnunet_name": "GynSurg",
+        #Added to have handling for multiclass cases
+        "labels": {
+            "background": 0,
+            "uterus": 1,
+            "fallopian tubes": 2,
+            "ovaries": 3,
+        },
+    },
 ]
 
 IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"]
@@ -91,6 +106,22 @@ def read_label_mask(mask_path: Path) -> np.ndarray:
 
     return label_np
 
+def read_label_mask_multiclass(mask_path: Path) -> np.ndarray:
+    mask = Image.open(mask_path).convert("L")
+    mask_np = np.array(mask)
+
+    label_np = np.zeros(mask_np.shape)
+    for i,val in enumerate(np.unique(mask_np)):
+        label_np[mask_np==val] = i
+
+    #Below commented out under the assumption it's not necessary for functionality
+    #unique_values = set(np.unique(label_np).tolist())
+
+    #if not unique_values.issubset({0, 1}):
+    #    raise ValueError(f"Invalid label values in {mask_path}: {unique_values}")
+
+    return label_np
+
 
 def save_rgb_png(image_np: np.ndarray, output_path: Path):
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,6 +150,7 @@ def convert_split_to_nnunet(
     standardized_root: Path,
     dataset_folder: Path,
     split: str,
+    multiclass: bool = False,
 ):
     images_dir = standardized_root / split / "images"
     masks_dir = standardized_root / split / "masks"
@@ -141,7 +173,11 @@ def convert_split_to_nnunet(
         mask_path = find_matching_mask(masks_dir, image_path)
 
         image_np = read_rgb_image(image_path)
-        label_np = read_label_mask(mask_path)
+
+        mask_reader = read_label_mask
+        if(multiclass):
+            mask_reader = read_label_mask_multiclass
+        label_np = mask_reader(mask_path)
 
         if image_np.shape[:2] != label_np.shape[:2]:
             raise ValueError(
@@ -220,6 +256,43 @@ def write_dataset_json(dataset_folder: Path, num_training: int):
 
     print(f"Saved dataset.json: {output_path}")
 
+def write_dataset_json_multiclass(dataset_folder: Path, num_training: int, labels):
+    """
+    Correct for RGB PNGs read by NaturalImage2DIO.
+
+    The previous version used {"0": "RGB"}, which told nnU-Net to expect 1 channel.
+    NaturalImage2DIO reads RGB PNGs as 3 channels, so we declare red/green/blue.
+
+    TODO
+    to be reworked so labels are not hardcoded
+    """
+
+    dataset_json = {
+        "channel_names": {
+            "0": "red",
+            "1": "green",
+            "2": "blue"
+        },
+        #"labels": {
+        #    "background": 0,
+        #    "uterus": 1,
+        #    "fallopian tubes": 2,
+        #    "ovaries": 3,
+        #},
+        "labels" : labels,
+        "numTraining": num_training,
+        "file_ending": ".png",
+        "overwrite_image_reader_writer": "NaturalImage2DIO"
+    }
+
+    output_path = dataset_folder / "dataset.json"
+
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump(dataset_json, file, indent=4)
+
+    print(f"Saved dataset.json: {output_path}")
+
+
 
 def write_custom_split_file(dataset_folder_name: str, train_ids, val_ids):
     preprocessed_dataset_dir = NNUNET_PREPROCESSED / dataset_folder_name
@@ -276,6 +349,7 @@ def convert_dataset(dataset_cfg):
     dataset_name = dataset_cfg["dataset_name"]
     nnunet_name = dataset_cfg["nnunet_name"]
     standardized_root = dataset_cfg["standardized_root"]
+    labels = dataset_cfg.get(["labels"])
 
     dataset_folder_name = f"Dataset{dataset_id:03d}_{nnunet_name}"
     dataset_folder = NNUNET_RAW / dataset_folder_name
@@ -295,6 +369,7 @@ def convert_dataset(dataset_cfg):
         standardized_root=standardized_root,
         dataset_folder=dataset_folder,
         split="train",
+        multiclass=(labels is None)
     )
 
     val_rows, val_ids = convert_split_to_nnunet(
@@ -302,6 +377,7 @@ def convert_dataset(dataset_cfg):
         standardized_root=standardized_root,
         dataset_folder=dataset_folder,
         split="val",
+        multiclass=(labels is None)
     )
 
     test_rows, test_ids = convert_split_to_nnunet(
@@ -309,6 +385,7 @@ def convert_dataset(dataset_cfg):
         standardized_root=standardized_root,
         dataset_folder=dataset_folder,
         split="test",
+        multiclass=(labels is None)
     )
 
     all_rows.extend(train_rows)
@@ -317,10 +394,17 @@ def convert_dataset(dataset_cfg):
 
     num_training = len(train_ids) + len(val_ids)
 
-    write_dataset_json(
-        dataset_folder=dataset_folder,
-        num_training=num_training,
-    )
+    if(labels is None):
+        write_dataset_json(
+            dataset_folder=dataset_folder,
+            num_training=num_training,
+        )
+    else:
+        write_dataset_json_multiclass(
+            dataset_folder=dataset_folder,
+            num_training=num_training,
+            labels=labels
+        )
 
     write_custom_split_file(
         dataset_folder_name=dataset_folder_name,
