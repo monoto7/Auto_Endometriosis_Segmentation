@@ -1,6 +1,6 @@
 dataset_name: GynSurg
 
-dataset_root: "C:\\Users\\Administrator\\Documents\\SPARC\\SplitDatasets\\GynSurg"
+dataset_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\SplitDatasets\\GynSurg"
 
 splits:
   train:

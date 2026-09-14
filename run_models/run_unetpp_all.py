@@ -8,12 +8,13 @@ from src.runners.run_unetpp import train_and_evaluate
 from src.evaluation.visualize_metrics import visualize_dataset_model_split
 
 
-RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
+RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
 
 CONFIGS_TO_RUN = [
-    PROJECT_ROOT / "configs" / "experiments" / "enid_unetpp_trained.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "glenda_unetpp_trained.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_unetpp_trained.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "enid_unetpp_trained.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "glenda_unetpp_trained.yaml",
+    #PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_unetpp_trained.yaml",
+    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_unetpp_trained.yaml",
 ]
 
 # Debug: run only ENID
@@ -32,9 +33,10 @@ CONFIGS_TO_RUN = [
 # ]
 
 DATASETS_TO_VISUALIZE = [
-    "ENID",
-    "GLENDA",
-    "GLENDA_clean",
+    #"ENID",
+    #"GLENDA",
+    #"GLENDA_clean",
+    "GynSurg",
 ]
 
 SPLITS_TO_VISUALIZE = [

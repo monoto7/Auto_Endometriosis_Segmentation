@@ -1,0 +1,16 @@
+experiment_name: "GynSurg_UNetPP_Trained"
+
+dataset_config: "configs/datasets/GynSurg.yaml"
+model_config: "configs/models/unetpp.yaml"
+
+output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/UNetPP/trained"
+
+splits:
+  train: "train"
+  val: "val"
+  test: "test"
+
+save:
+  merged_masks: true
+  overlays: true
+  checkpoints: true
