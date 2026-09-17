@@ -22,6 +22,8 @@ from src.models.segformer.segformer_model import build_segformer_model_binary
 from src.evaluation.metrics import compute_binary_metrics
 from src.evaluation.metrics import compute_multiclass_metrics
 from src.utils.visualization import save_overlay
+from src.utils.mask_utils import probability_to_mask
+from src.utils.mask_utils import load_mask
 
 
 
@@ -122,18 +124,7 @@ def probability_to_binary_mask(probability_map, threshold, postprocessing_cfg):
 
     return binary_mask
 
-#Used instead so multiclass is supported, should still support binary
-def probability_to_mask(probability_map, threshold, postprocessing_cfg, classes):
-    mask = np.zeros(probability_map[0].shape)
-    for i in range(probability_map.shape[0]-1):
-        mask[probability_map[i+1] >= threshold] = int(classes[i])
 
-        #TODO fix below so it works with multiclass
-        if postprocessing_cfg.get("remove_small_components", False):
-            min_area_px = int(postprocessing_cfg.get("min_component_area_px", 0))
-            mask = remove_small_components(mask, min_area_px)
-
-    return mask
 
 
 def find_original_image_path(images_dir: Path, image_name: str) -> Path:
@@ -171,15 +162,8 @@ def load_binary_mask(mask_path: Path):
 
     return (mask_np > 0).astype(np.uint8) * 255
 
-#handling for grayscale masks
-def load_mask(mask_path: Path):
-    mask = Image.open(mask_path).convert("L")
-    mask_np = np.array(mask)
 
-    return mask_np
-
-
-def train_one_epoch(model, dataloader, optimizer, device, loss_cfg):
+def train_one_epoch(model, dataloader, optimizer, device, loss_cfg, binary = True):
     model.train()
 
     losses = []
@@ -196,12 +180,18 @@ def train_one_epoch(model, dataloader, optimizer, device, loss_cfg):
             target_size=masks.shape[-2:],
         )
 
-        loss = combined_multiclass_loss(
-            logits=logits,
-            targets=masks,
-            dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
-            ce_weight=float(loss_cfg.get("bce_weight", 0.5)),
+        #Reworked to have loss function depend on whether it's binary
+        lossFunc = combined_loss
+        if(~binary):
+            lossFunc = combined_multiclass_loss
+
+        loss = lossFunc(
+        logits=logits,
+        targets=masks,
+        dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
+        ce_weight=float(loss_cfg.get("bce_weight", 0.5)),
         )
+
 
         loss.backward()
         optimizer.step()
@@ -219,6 +209,7 @@ def validate_one_epoch(
     loss_cfg,
     threshold,
     postprocessing_cfg,
+    classes = ["255"]
 ):
     model.eval()
 
@@ -237,8 +228,12 @@ def validate_one_epoch(
             images=images,
             target_size=masks.shape[-2:],
         )
+        #Reworked to have loss function depend on whether it's binary
+        lossFunc = combined_loss
+        if(len(classes) != 1):
+            lossFunc = combined_multiclass_loss
 
-        loss = combined_multiclass_loss(
+        loss = lossFunc(
             logits=logits,
             targets=masks,
             dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
@@ -250,25 +245,28 @@ def validate_one_epoch(
         probs = torch.sigmoid(logits).detach().cpu().numpy()
         masks_np = masks.detach().cpu().numpy()
 
-        #TODO rework below, though it's not used for training so maybe can ignore for now
+        #TODO test below to make sure this actually functions
         for i in range(probs.shape[0]):
-            pred_mask = probability_to_binary_mask(
-                probability_map=probs[i, 0],
+            pred_mask = probability_to_mask(
+                probability_map=probs[i],
                 threshold=threshold,
                 postprocessing_cfg=postprocessing_cfg,
+                classes=classes
             )
 
-            gt_mask = (masks_np[i, 0] > 0).astype(np.uint8) * 255
+            gt_mask = masks_np[i]
 
-            metrics = compute_binary_metrics(
-                pred_mask=pred_mask,
-                gt_mask=gt_mask,
-            )
+            for iter, mask in enumerate(gt_mask):
+                metrics = compute_multiclass_metrics(
+                    pred_mask=pred_mask[iter],
+                    gt_mask=mask,
+                    class_g_value=classes[iter]
+                )
 
-            dice_scores.append(metrics["dice"])
-            iou_scores.append(metrics["iou"])
-            precision_scores.append(metrics["precision"])
-            recall_scores.append(metrics["recall"])
+                dice_scores.append(metrics["dice"])
+                iou_scores.append(metrics["iou"])
+                precision_scores.append(metrics["precision"])
+                recall_scores.append(metrics["recall"])
 
     return {
         "val_loss": float(np.mean(losses)),
@@ -573,23 +571,40 @@ def evaluate_records_and_save(
                 pred_mask=pred_mask,
                 output_path=overlay_path,
             )
-        metrics = None
-        if(True or len(classes)==1):
-            metrics = compute_binary_metrics(
+        
+        for class_name in classes:
+            #Use multiclass metrics and just assume 255, assuming pre-processing will make everything a binary mask in the non-multiclass case
+            metrics = compute_multiclass_metrics(
                 pred_mask=pred_mask,
                 gt_mask=gt_mask,
+                class_g_value=class_name
             )
-        else:
-            for class_name in classes:
-                #TODO needs rework to properly support below
-                metrics = compute_multiclass_metrics(
-                    pred_mask=pred_mask,
-                    gt_mask=gt_mask,
-                    class_g_value=class_name
-                )
 
-        inference_rows.append(
-            {
+            inference_rows.append(
+                {
+                    "dataset": dataset_name,
+                    "split": split_name,
+                    "model_name": model_name,
+                    "training_state": "trained",
+                    "prompt_mode": prompt_mode,
+                    "image_name": image_name,
+                    "mask_name": Path(mask_path).name,
+                    "class_id": class_name,
+                    "threshold": threshold,
+                    "postprocess_remove_small_components": postprocessing_cfg.get(
+                        "remove_small_components",
+                        False,
+                    ),
+                    "postprocess_min_component_area_px": postprocessing_cfg.get(
+                        "min_component_area_px",
+                        0,
+                    ),
+                    "inference_time_ms": inference_time_ms_per_image,
+                    "merged_mask_name": merged_name,
+                }
+            )
+
+            metric_row = {
                 "dataset": dataset_name,
                 "split": split_name,
                 "model_name": model_name,
@@ -597,33 +612,12 @@ def evaluate_records_and_save(
                 "prompt_mode": prompt_mode,
                 "image_name": image_name,
                 "mask_name": Path(mask_path).name,
-                "threshold": threshold,
-                "postprocess_remove_small_components": postprocessing_cfg.get(
-                    "remove_small_components",
-                    False,
-                ),
-                "postprocess_min_component_area_px": postprocessing_cfg.get(
-                    "min_component_area_px",
-                    0,
-                ),
-                "inference_time_ms": inference_time_ms_per_image,
-                "merged_mask_name": merged_name,
+                "class_id": class_name,
+                "num_prompt_instances": 0,
             }
-        )
 
-        metric_row = {
-            "dataset": dataset_name,
-            "split": split_name,
-            "model_name": model_name,
-            "training_state": "trained",
-            "prompt_mode": prompt_mode,
-            "image_name": image_name,
-            "mask_name": Path(mask_path).name,
-            "num_prompt_instances": 0,
-        }
-
-        metric_row.update(metrics)
-        metric_rows.append(metric_row)
+            metric_row.update(metrics)
+            metric_rows.append(metric_row)
 
     inference_df = pd.DataFrame(inference_rows)
     metrics_df = pd.DataFrame(metric_rows)
@@ -851,6 +845,7 @@ def train_and_evaluate(experiment_config_path):
             optimizer=optimizer,
             device=device,
             loss_cfg=model_cfg.get("loss", {}),
+            binary=num_labels == 1
         )
 
         val_stats = validate_one_epoch(
@@ -860,6 +855,7 @@ def train_and_evaluate(experiment_config_path):
             loss_cfg=model_cfg.get("loss", {}),
             threshold=threshold,
             postprocessing_cfg=postprocessing_cfg,
+            classes=classes
         )
 
         val_loss = val_stats["val_loss"]

@@ -1,6 +1,7 @@
 from pathlib import Path
 import numpy as np
 from PIL import Image
+import cv2
 
 
 def load_binary_mask(mask_path: Path) -> np.ndarray:
@@ -14,7 +15,6 @@ def load_mask(mask_path: Path) -> np.ndarray:
     mask = Image.open(mask_path).convert("L")
     mask_np = np.array(mask)
     return mask_np
-
 
 
 def save_binary_mask(mask: np.ndarray, output_path: Path) -> None:
@@ -72,3 +72,38 @@ def ensure_same_size(mask: np.ndarray, reference_mask: np.ndarray) -> np.ndarray
     )
 
     return (np.array(resized) > 0).astype(np.uint8)
+
+#new funcs
+
+def probability_to_mask(probability_map, threshold, postprocessing_cfg, classes):
+    mask = np.zeros(probability_map[0].shape)
+    for i in range(probability_map.shape[0]-1):
+        mask[probability_map[i+1] >= threshold] = int(classes[i])
+
+        #TODO fix below so it works with multiclass
+        if postprocessing_cfg.get("remove_small_components", False):
+            min_area_px = int(postprocessing_cfg.get("min_component_area_px", 0))
+            mask = remove_small_components(mask, min_area_px,classes[i])
+
+    return mask
+
+def remove_small_components(original_mask: np.ndarray, min_area_px: int, class_id = "255"):
+    if min_area_px <= 0:
+        return original_mask
+
+    mask = original_mask
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+        mask,
+        connectivity=8,
+    )
+
+    cleaned = np.zeros_like(mask, dtype=np.uint8)
+
+    for label_id in range(1, num_labels):
+        area = stats[label_id, cv2.CC_STAT_AREA]
+
+        if area >= min_area_px:
+            cleaned[labels == label_id] = 1
+
+    return cleaned.astype(np.uint8) * int(class_id)

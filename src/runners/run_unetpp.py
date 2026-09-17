@@ -16,10 +16,15 @@ from PIL import Image
 from torch.utils.data import DataLoader
 
 from src.datasets.segmentation_dataset import BinarySegmentationDataset
+from src.datasets.segmentation_dataset import GrayscaleSegmentationDataset
 from src.models.unetpp.unetpp_model import build_unetpp_model
 from src.evaluation.metrics import compute_binary_metrics
+from src.evaluation.metrics import compute_multiclass_metrics
 from src.utils.visualization import save_overlay
 
+from src.utils.loss_funcs import combined_multiclass_loss
+from src.utils.mask_utils import probability_to_mask
+from src.utils.mask_utils import load_mask
 
 def load_yaml(path):
     path = Path(path)
@@ -120,7 +125,7 @@ def load_binary_mask(mask_path: Path):
     return (mask_np > 0).astype(np.uint8) * 255
 
 
-def train_one_epoch(model, dataloader, optimizer, device, loss_cfg):
+def train_one_epoch(model, dataloader, optimizer, device, loss_cfg, binary=True):
     model.train()
 
     losses = []
@@ -132,8 +137,10 @@ def train_one_epoch(model, dataloader, optimizer, device, loss_cfg):
         optimizer.zero_grad(set_to_none=True)
 
         logits = model(images)
-
-        loss = combined_loss(
+        lossFunc = combined_loss
+        if(~binary):
+            lossFunc = combined_multiclass_loss
+        loss = lossFunc(
             logits=logits,
             targets=masks,
             dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
@@ -156,6 +163,7 @@ def validate_one_epoch(
     loss_cfg,
     threshold,
     postprocessing_cfg,
+    classes = ["255"],
 ):
     model.eval()
 
@@ -171,7 +179,12 @@ def validate_one_epoch(
 
         logits = model(images)
 
-        loss = combined_loss(
+        #Reworked to have loss function depend on whether it's binary
+        lossFunc = combined_loss
+        if(len(classes) != 1):
+            lossFunc = combined_multiclass_loss
+
+        loss = lossFunc(
             logits=logits,
             targets=masks,
             dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
@@ -184,24 +197,26 @@ def validate_one_epoch(
         masks_np = masks.detach().cpu().numpy()
 
         for i in range(probs.shape[0]):
-            pred_mask = probability_to_binary_mask(
+            pred_mask = probability_to_mask(
                 probability_map=probs[i, 0],
                 threshold=threshold,
                 postprocessing_cfg=postprocessing_cfg,
+                classes=classes
             )
 
-            gt_mask = (masks_np[i, 0] > 0).astype(np.uint8) * 255
+            gt_mask = masks_np[i]
+            
+            for iter, mask in enumerate(gt_mask):
+                metrics = compute_multiclass_metrics(
+                    pred_mask=pred_mask[iter],
+                    gt_mask=mask,
+                    class_g_value=classes[iter]
+                )
 
-            metrics = compute_binary_metrics(
-                pred_mask=pred_mask,
-                gt_mask=gt_mask,
-            )
-
-            dice_scores.append(metrics["dice"])
-            iou_scores.append(metrics["iou"])
-            precision_scores.append(metrics["precision"])
-            recall_scores.append(metrics["recall"])
-
+                dice_scores.append(metrics["dice"])
+                iou_scores.append(metrics["iou"])
+                precision_scores.append(metrics["precision"])
+                recall_scores.append(metrics["recall"])
     return {
         "val_loss": float(np.mean(losses)),
         "val_dice": float(np.mean(dice_scores)),
@@ -299,22 +314,27 @@ def collect_probabilities_for_split(
 
         for i, image_name in enumerate(image_names):
             mask_path = find_original_mask_path(masks_dir, image_name)
-            gt_mask = load_binary_mask(mask_path)
+
+            #preprocessing already binarizes masks, so just load mask as is instead.
+            gt_mask = load_mask(mask_path)
 
             original_h, original_w = gt_mask.shape
 
-            probability_map = cv2.resize(
-                probs[i, 0],
-                (original_w, original_h),
-                interpolation=cv2.INTER_LINEAR,
-            )
+            rescaled = np.zeros((probs.shape[1],original_h,original_w))
+            for y in range(probs.shape[1]):
+                rescaled[y] = cv2.resize(
+                    probs[i, y],
+                    (original_w, original_h),
+                    interpolation=cv2.INTER_LINEAR,
+                )
+            
 
             image_path = find_original_image_path(images_dir, image_name)
 
             records.append(
                 {
                     "image_name": image_name,
-                    "probability_map": probability_map,
+                    "probability_map": rescaled,
                     "gt_mask": gt_mask,
                     "image_path": image_path,
                     "mask_path": mask_path,
@@ -324,25 +344,27 @@ def collect_probabilities_for_split(
     return records
 
 
-def run_threshold_sweep(records, thresholds, postprocessing_cfg):
+def run_threshold_sweep(records, thresholds, postprocessing_cfg, classes = ["255"]):
     rows = []
 
     for threshold in thresholds:
         metric_rows = []
 
         for record in records:
-            pred_mask = probability_to_binary_mask(
+            pred_mask = probability_to_mask(
                 probability_map=record["probability_map"],
                 threshold=float(threshold),
                 postprocessing_cfg=postprocessing_cfg,
+                classes=classes
             )
 
-            metrics = compute_binary_metrics(
-                pred_mask=pred_mask,
-                gt_mask=record["gt_mask"],
-            )
-
-            metric_rows.append(metrics)
+            for i in classes:
+                metrics = compute_multiclass_metrics(
+                    pred_mask= (pred_mask[int(i)]==int(i)).astype(int),
+                    gt_mask=record["gt_mask"],
+                    class_g_value=int(i)
+                )
+                metric_rows.append(metrics)
 
         metric_df = pd.DataFrame(metric_rows)
 
@@ -446,6 +468,7 @@ def evaluate_records_and_save(
     postprocessing_cfg,
     save_cfg,
     inference_time_ms_per_image=None,
+    classes = ["255"],
 ):
     prompt_mode = "No_prompt"
 
@@ -465,10 +488,11 @@ def evaluate_records_and_save(
         mask_path = record["mask_path"]
         gt_mask = record["gt_mask"]
 
-        pred_mask = probability_to_binary_mask(
+        pred_mask = probability_to_mask(
             probability_map=record["probability_map"],
             threshold=threshold,
             postprocessing_cfg=postprocessing_cfg,
+            classes=classes
         )
 
         merged_name = f"{Path(image_name).stem}.png"
@@ -487,13 +511,40 @@ def evaluate_records_and_save(
                 output_path=overlay_path,
             )
 
-        metrics = compute_binary_metrics(
-            pred_mask=pred_mask,
-            gt_mask=gt_mask,
-        )
+        for class_name in classes:
+            #Use multiclass metrics and just assume 255, assuming pre-processing will make everything a binary mask in the non-multiclass case
+            metrics = compute_multiclass_metrics(
+                pred_mask=pred_mask,
+                gt_mask=gt_mask,
+                class_g_value=class_name
+            )
+    
 
-        inference_rows.append(
-            {
+            inference_rows.append(
+                {
+                    "dataset": dataset_name,
+                    "split": split_name,
+                    "model_name": model_name,
+                    "training_state": "trained",
+                    "prompt_mode": prompt_mode,
+                    "image_name": image_name,
+                    "mask_name": Path(mask_path).name,
+                    "class_id": class_name,
+                    "threshold": threshold,
+                    "postprocess_remove_small_components": postprocessing_cfg.get(
+                        "remove_small_components",
+                        False,
+                    ),
+                    "postprocess_min_component_area_px": postprocessing_cfg.get(
+                        "min_component_area_px",
+                        0,
+                    ),
+                    "inference_time_ms": inference_time_ms_per_image,
+                    "merged_mask_name": merged_name,
+                }
+            )
+
+            metric_row = {
                 "dataset": dataset_name,
                 "split": split_name,
                 "model_name": model_name,
@@ -501,30 +552,9 @@ def evaluate_records_and_save(
                 "prompt_mode": prompt_mode,
                 "image_name": image_name,
                 "mask_name": Path(mask_path).name,
-                "threshold": threshold,
-                "postprocess_remove_small_components": postprocessing_cfg.get(
-                    "remove_small_components",
-                    False,
-                ),
-                "postprocess_min_component_area_px": postprocessing_cfg.get(
-                    "min_component_area_px",
-                    0,
-                ),
-                "inference_time_ms": inference_time_ms_per_image,
-                "merged_mask_name": merged_name,
+                "class_id": class_name,
+                "num_prompt_instances": 0,
             }
-        )
-
-        metric_row = {
-            "dataset": dataset_name,
-            "split": split_name,
-            "model_name": model_name,
-            "training_state": "trained",
-            "prompt_mode": prompt_mode,
-            "image_name": image_name,
-            "mask_name": Path(mask_path).name,
-            "num_prompt_instances": 0,
-        }
 
         metric_row.update(metrics)
         metric_rows.append(metric_row)
@@ -617,21 +647,32 @@ def train_and_evaluate(experiment_config_path):
     val_cfg = dataset_cfg["splits"][val_split]
     test_cfg = dataset_cfg["splits"][test_split]
 
-    train_dataset = BinarySegmentationDataset(
+
+    #Added support for classes and multiclass behaviour
+    classes = dataset_cfg.get("classes", ["255"])
+    classes_transformed = list(range(1,len(classes)))
+
+    Dataset = BinarySegmentationDataset
+    if(len(classes) > 1):
+        Dataset = GrayscaleSegmentationDataset
+    else:
+        classes_transformed = 1
+
+    train_dataset = Dataset(
         images_dir=dataset_root / train_cfg["images"],
         masks_dir=dataset_root / train_cfg["masks"],
         image_size=image_size,
         augment=True,
     )
 
-    val_dataset = BinarySegmentationDataset(
+    val_dataset = Dataset(
         images_dir=dataset_root / val_cfg["images"],
         masks_dir=dataset_root / val_cfg["masks"],
         image_size=image_size,
         augment=False,
     )
 
-    test_dataset = BinarySegmentationDataset(
+    test_dataset = Dataset(
         images_dir=dataset_root / test_cfg["images"],
         masks_dir=dataset_root / test_cfg["masks"],
         image_size=image_size,
@@ -661,12 +702,12 @@ def train_and_evaluate(experiment_config_path):
         num_workers=num_workers,
         pin_memory=True,
     )
-
+    
     model = build_unetpp_model(
         encoder_name=model_cfg.get("encoder_name", "resnet34"),
         encoder_weights=model_cfg.get("encoder_weights", "imagenet"),
         in_channels=int(model_cfg.get("in_channels", 3)),
-        classes=int(model_cfg.get("classes", 1)),
+        classes=classes_transformed,
     )
 
     model.to(device)
@@ -730,6 +771,7 @@ def train_and_evaluate(experiment_config_path):
             optimizer=optimizer,
             device=device,
             loss_cfg=model_cfg.get("loss", {}),
+            binary=len(classes) > 1
         )
 
         val_stats = validate_one_epoch(
@@ -739,6 +781,7 @@ def train_and_evaluate(experiment_config_path):
             loss_cfg=model_cfg.get("loss", {}),
             threshold=threshold,
             postprocessing_cfg=postprocessing_cfg,
+            classes=classes
         )
 
         val_loss = val_stats["val_loss"]
@@ -845,6 +888,7 @@ def train_and_evaluate(experiment_config_path):
             records=val_records,
             thresholds=threshold_values,
             postprocessing_cfg=postprocessing_cfg,
+            classes=classes
         )
 
         save_threshold_sweep(threshold_df, output_root)
@@ -898,6 +942,7 @@ def train_and_evaluate(experiment_config_path):
         postprocessing_cfg=postprocessing_cfg,
         save_cfg=save_cfg,
         inference_time_ms_per_image=val_inference_time,
+        classes=classes
     )
 
     test_records = collect_probabilities_for_split(
@@ -918,6 +963,7 @@ def train_and_evaluate(experiment_config_path):
         postprocessing_cfg=postprocessing_cfg,
         save_cfg=save_cfg,
         inference_time_ms_per_image=test_inference_time,
+        classes=classes
     )
 
     print(f"{model_name} training and evaluation finished.")
