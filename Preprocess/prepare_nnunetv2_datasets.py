@@ -20,30 +20,30 @@ from src.utils.nnunet_env import (
 
 
 DATASETS = [
-    {
-        "dataset_id": 501,
-        "dataset_name": "ENID",
-        "standardized_root": Path(
-            r"F:\Datasets\Standardized datasets\ENID\ENID 60_20_20 Split"
-        ),
-        "nnunet_name": "ENID",
-    },
-    {
-        "dataset_id": 502,
-        "dataset_name": "GLENDA",
-        "standardized_root": Path(
-            r"F:\Datasets\Standardized datasets\GLENDA\GLENDA 60_20_20 split"
-        ),
-        "nnunet_name": "GLENDA",
-    },
-    {
-        "dataset_id": 503,
-        "dataset_name": "GLENDA_clean",
-        "standardized_root": Path(
-            r"F:\Datasets\Standardized datasets\GLENDA_clean\GLENDA_clean 60_20_20 split"
-        ),
-        "nnunet_name": "GLENDA_clean",
-    },
+    # {
+    #     "dataset_id": 501,
+    #     "dataset_name": "ENID",
+    #     "standardized_root": Path(
+    #         r"F:\Datasets\Standardized datasets\ENID\ENID 60_20_20 Split"
+    #     ),
+    #     "nnunet_name": "ENID",
+    # },
+    # {
+    #     "dataset_id": 502,
+    #     "dataset_name": "GLENDA",
+    #     "standardized_root": Path(
+    #         r"F:\Datasets\Standardized datasets\GLENDA\GLENDA 60_20_20 split"
+    #     ),
+    #     "nnunet_name": "GLENDA",
+    # },
+    # {
+    #     "dataset_id": 503,
+    #     "dataset_name": "GLENDA_clean",
+    #     "standardized_root": Path(
+    #         r"F:\Datasets\Standardized datasets\GLENDA_clean\GLENDA_clean 60_20_20 split"
+    #     ),
+    #     "nnunet_name": "GLENDA_clean",
+    # },
     {
         "dataset_id": 504,
         "dataset_name": "GynSurg",
@@ -349,7 +349,7 @@ def convert_dataset(dataset_cfg):
     dataset_name = dataset_cfg["dataset_name"]
     nnunet_name = dataset_cfg["nnunet_name"]
     standardized_root = dataset_cfg["standardized_root"]
-    labels = dataset_cfg.get(["labels"])
+    labels = dataset_cfg.get("labels")
 
     dataset_folder_name = f"Dataset{dataset_id:03d}_{nnunet_name}"
     dataset_folder = NNUNET_RAW / dataset_folder_name

@@ -14,3 +14,5 @@ save:
   merged_masks: true
   overlays: true
   checkpoints: true
+
+num_labels: 4

@@ -28,20 +28,25 @@ from src.utils.nnunet_env import (
 
 
 DATASETS = [
+    # {
+    #     "dataset_id": 501,
+    #     "dataset_name": "ENID",
+    #     "dataset_folder": "Dataset501_ENID",
+    # },
+    # {
+    #     "dataset_id": 502,
+    #     "dataset_name": "GLENDA",
+    #     "dataset_folder": "Dataset502_GLENDA",
+    # },
+    # {
+    #     "dataset_id": 503,
+    #     "dataset_name": "GLENDA_clean",
+    #     "dataset_folder": "Dataset503_GLENDA_clean",
+    # },
     {
-        "dataset_id": 501,
-        "dataset_name": "ENID",
-        "dataset_folder": "Dataset501_ENID",
-    },
-    {
-        "dataset_id": 502,
-        "dataset_name": "GLENDA",
-        "dataset_folder": "Dataset502_GLENDA",
-    },
-    {
-        "dataset_id": 503,
-        "dataset_name": "GLENDA_clean",
-        "dataset_folder": "Dataset503_GLENDA_clean",
+        "dataset_id": 504,
+        "dataset_name": "GynSurg",
+        "dataset_folder": "Dataset504_GynSurg",
     },
 ]
 

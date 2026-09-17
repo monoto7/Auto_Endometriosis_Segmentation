@@ -5,12 +5,12 @@ import pandas as pd
 from PIL import Image
 
 
-NNUNET_RAW = Path(r"F:\Results\SAM_Benchmarking\nnUNet\nnUNet_raw")
+NNUNET_RAW = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\Preprocessing\nnUnet\nnUNet_raw")
 
 DATASETS = [
-    "Dataset501_ENID",
-    "Dataset502_GLENDA",
-    "Dataset503_GLENDA_clean",
+    #"Dataset501_ENID",
+    #"Dataset502_GLENDA",
+    #"Dataset503_GLENDA_clean",
     "Dataset504_GynSurg"
 ]
 

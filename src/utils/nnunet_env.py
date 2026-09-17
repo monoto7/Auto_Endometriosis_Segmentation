@@ -2,9 +2,9 @@ import os
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(r"F:\GitHub repos\Auto_Endometriosis_Segmentation")
+PROJECT_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\Jasmin Repos\AES\Auto_Endometriosis_Segmentation")
 
-NNUNET_BASE = Path(r"F:\Results\SAM_Benchmarking\nnUNet")
+NNUNET_BASE = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\Preprocessing\nnUnet")
 
 NNUNET_RAW = NNUNET_BASE / "nnUNet_raw"
 NNUNET_PREPROCESSED = NNUNET_BASE / "nnUNet_preprocessed"
