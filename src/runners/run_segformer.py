@@ -350,6 +350,7 @@ def collect_probabilities_for_split(
     dataset_root: Path,
     split_cfg: dict,
     device,
+    binary = True,
 ):
     model.eval()
 
@@ -367,8 +368,11 @@ def collect_probabilities_for_split(
             images=images,
             target_size=images.shape[-2:],
         )
-
-        probs = torch.sigmoid(logits).detach().cpu().numpy()
+        probs = None
+        if(binary):
+            probs = torch.sigmoid(logits).detach().cpu().numpy()
+        else:
+            probs = torch.softmax(logits,dim=1).detach().cpu().numpy()
         for i, image_name in enumerate(image_names):
             mask_path = find_original_mask_path(masks_dir, image_name)
             #Load mask instead of binary mask since preprocessing already handles binarization where desired
@@ -548,8 +552,6 @@ def evaluate_records_and_save(
         image_path = record["image_path"]
         mask_path = record["mask_path"]
         gt_mask = record["gt_mask"]
-        #TODO implement value to save masks based upon colourvalue rather than binary
-        #colourVal = record["mask"]
 
         pred_mask = probability_to_mask(
             probability_map=record["probability_map"],
