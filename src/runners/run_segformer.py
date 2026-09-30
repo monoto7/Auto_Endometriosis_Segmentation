@@ -255,12 +255,14 @@ def validate_one_epoch(
             )
 
             gt_mask = masks_np[i]
-
-            for iter, mask in enumerate(gt_mask):
+            for i in range(len(classes)):
+                gt_mask[gt_mask==i+1] = classes[i]
+            gt_mask[gt_mask]
+            for classVal in classes:
                 metrics = compute_multiclass_metrics(
-                    pred_mask=pred_mask[iter],
-                    gt_mask=mask,
-                    class_g_value=classes[iter]
+                    pred_mask=pred_mask==classVal,
+                    gt_mask=gt_mask,
+                    class_g_value=classVal
                 )
 
                 dice_scores.append(metrics["dice"])

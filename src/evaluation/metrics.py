@@ -38,7 +38,6 @@ def compute_multiclass_metrics(pred_mask: np.ndarray, gt_mask: np.ndarray, class
     pred = pred_mask > 0
     #slight change means that we can just use the class_id(set as the grayscale intensity value)
     gt = gt_mask == class_g_value
-
     tp = np.logical_and(pred, gt).sum()
     fp = np.logical_and(pred, np.logical_not(gt)).sum()
     fn = np.logical_and(np.logical_not(pred), gt).sum()
@@ -51,7 +50,6 @@ def compute_multiclass_metrics(pred_mask: np.ndarray, gt_mask: np.ndarray, class
     precision = tp / (tp + fp + eps)
     recall = tp / (tp + fn + eps)
     specificity = tn / (tn + fp + eps)
-
     return {
         "dice": float(dice),
         "iou": float(iou),

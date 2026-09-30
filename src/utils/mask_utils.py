@@ -77,14 +77,15 @@ def ensure_same_size(mask: np.ndarray, reference_mask: np.ndarray) -> np.ndarray
 
 def probability_to_mask(probability_map, threshold, postprocessing_cfg, classes):
     mask = np.zeros(probability_map[0].shape)
-    for i in range(probability_map.shape[0]-1):
-        mask[probability_map[i+1] >= threshold] = int(classes[i])
+    offset = probability_map.shape[0]-len(classes)
+    
+    for i in range(probability_map.shape[0]-offset):
+        mask[probability_map[i+offset] >= threshold] = int(classes[i])
 
         #TODO fix below so it works with multiclass
         if postprocessing_cfg.get("remove_small_components", False):
             min_area_px = int(postprocessing_cfg.get("min_component_area_px", 0))
             mask = remove_small_components(mask, min_area_px,classes[i])
-
     return mask
 
 def remove_small_components(original_mask: np.ndarray, min_area_px: int, class_id = "255"):
