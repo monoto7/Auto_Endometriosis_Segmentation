@@ -45,11 +45,11 @@ def dice_loss_from_logits(logits, targets, eps=1e-7):
     return 1.0 - dice.mean()
 
 
-def combined_loss(logits, targets, dice_weight=0.5, bce_weight=0.5):
+def combined_loss(logits, targets, dice_weight=0.5, ce_weight=0.5):
     dice = dice_loss_from_logits(logits, targets)
     bce = torch_functional.binary_cross_entropy_with_logits(logits, targets)
 
-    return dice_weight * dice + bce_weight * bce
+    return dice_weight * dice + ce_weight * bce
 
 
 def save_binary_mask(mask: np.ndarray, output_path: Path):
@@ -138,13 +138,14 @@ def train_one_epoch(model, dataloader, optimizer, device, loss_cfg, binary=True)
 
         logits = model(images)
         lossFunc = combined_loss
+        
         if(~binary):
             lossFunc = combined_multiclass_loss
         loss = lossFunc(
             logits=logits,
             targets=masks,
             dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
-            bce_weight=float(loss_cfg.get("bce_weight", 0.5)),
+            ce_weight=float(loss_cfg.get("bce_weight", 0.5)),
         )
 
         loss.backward()
@@ -188,17 +189,22 @@ def validate_one_epoch(
             logits=logits,
             targets=masks,
             dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
-            bce_weight=float(loss_cfg.get("bce_weight", 0.5)),
+            ce_weight=float(loss_cfg.get("bce_weight", 0.5)),
         )
 
         losses.append(float(loss.detach().cpu().item()))
 
-        probs = torch.sigmoid(logits).detach().cpu().numpy()
+        #sigmoid for binary, softmax for multiclass
+        probs = None
+        if(len(classes) != 1):
+            probs = torch.softmax(logits,dim=1).detach().cpu().numpy()
+        else:
+            probs = torch.sigmoid(logits).detach().cpu().numpy()
         masks_np = masks.detach().cpu().numpy()
 
         for i in range(probs.shape[0]):
             pred_mask = probability_to_mask(
-                probability_map=probs[i, 0],
+                probability_map=probs[i, :],
                 threshold=threshold,
                 postprocessing_cfg=postprocessing_cfg,
                 classes=classes
@@ -207,8 +213,10 @@ def validate_one_epoch(
             gt_mask = masks_np[i]
             
             for iter, mask in enumerate(gt_mask):
+                if(iter>=len(classes)):
+                    break
                 metrics = compute_multiclass_metrics(
-                    pred_mask=pred_mask[iter],
+                    pred_mask=pred_mask[iter+1],
                     gt_mask=mask,
                     class_g_value=classes[iter]
                 )
@@ -297,6 +305,7 @@ def collect_probabilities_for_split(
     dataset_root: Path,
     split_cfg: dict,
     device,
+    classes = ["255"]
 ):
     model.eval()
 
@@ -310,8 +319,12 @@ def collect_probabilities_for_split(
         image_names = batch["image_name"]
 
         logits = model(images)
-        probs = torch.sigmoid(logits).detach().cpu().numpy()
-
+        #Softmax for mutliclass, sigmoid otherwise
+        probs = None
+        if(len(classes) != 1):
+            probs = torch.softmax(logits,dim=1).detach().cpu().numpy()
+        else:
+            probs = torch.sigmoid(logits).detach().cpu().numpy()
         for i, image_name in enumerate(image_names):
             mask_path = find_original_mask_path(masks_dir, image_name)
 
@@ -663,6 +676,7 @@ def train_and_evaluate(experiment_config_path):
         masks_dir=dataset_root / train_cfg["masks"],
         image_size=image_size,
         augment=True,
+        classes=classes
     )
 
     val_dataset = Dataset(
@@ -670,6 +684,7 @@ def train_and_evaluate(experiment_config_path):
         masks_dir=dataset_root / val_cfg["masks"],
         image_size=image_size,
         augment=False,
+        classes=classes
     )
 
     test_dataset = Dataset(
@@ -677,6 +692,7 @@ def train_and_evaluate(experiment_config_path):
         masks_dir=dataset_root / test_cfg["masks"],
         image_size=image_size,
         augment=False,
+        classes=classes
     )
 
     train_loader = DataLoader(
@@ -702,12 +718,19 @@ def train_and_evaluate(experiment_config_path):
         num_workers=num_workers,
         pin_memory=True,
     )
-    
+
+    #Change activation to softmax for multiclass
+    activation = None
+    classcount = 1
+    if(len(classes)>1):
+        activation = 'softmax2d'
+        classcount=len(classes)
     model = build_unetpp_model(
         encoder_name=model_cfg.get("encoder_name", "resnet34"),
         encoder_weights=model_cfg.get("encoder_weights", "imagenet"),
         in_channels=int(model_cfg.get("in_channels", 3)),
-        classes=classes_transformed,
+        classes=classcount,
+        activation=activation
     )
 
     model.to(device)
@@ -876,6 +899,7 @@ def train_and_evaluate(experiment_config_path):
         dataset_root=dataset_root,
         split_cfg=val_cfg,
         device=device,
+        classes=classes
     )
 
     if threshold_sweep_cfg.get("enabled", False):
@@ -951,6 +975,7 @@ def train_and_evaluate(experiment_config_path):
         dataset_root=dataset_root,
         split_cfg=test_cfg,
         device=device,
+        classes=classes
     )
 
     evaluate_records_and_save(

@@ -13,3 +13,5 @@ splits:
 save:
   merged_masks: true
   overlays: true
+
+num_labels: 4

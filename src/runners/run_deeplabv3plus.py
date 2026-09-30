@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.datasets.segmentation_dataset import BinarySegmentationDataset
+#Multiclass Grayscale support
+from src.datasets.segmentation_dataset import GrayscaleSegmentationDataset
 from src.models.deeplabv3plus.deeplabv3plus_model import build_deeplabv3plus_model
 from src.runners.run_unetpp import (
     collect_probabilities_for_split,
@@ -22,6 +24,13 @@ from src.runners.run_unetpp import (
     save_threshold_sweep,
 )
 
+#Standardize mask handling for multiclass case
+from src.utils.mask_utils import probability_to_mask
+from src.utils.mask_utils import load_mask
+
+#Standardize loss handling for multiclass case
+from src.utils.loss_funcs import DiceCELossModule
+from src.utils.loss_funcs import dice_loss_from_logits_multiclass
 
 def load_yaml(path):
     path = Path(path)
@@ -152,6 +161,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device):
 
         logits = model(images)
 
+        #TODO see if this impacts multiclass setting
         if logits.shape[-2:] != masks.shape[-2:]:
             logits = torch.nn.functional.interpolate(
                 logits,
@@ -175,7 +185,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion, device):
 
 
 @torch.no_grad()
-def validate_one_epoch(model, dataloader, criterion, device, threshold: float = 0.5):
+def validate_one_epoch(model, dataloader, criterion, device, threshold: float = 0.5, binary = True):
     model.eval()
 
     running_loss = 0.0
@@ -201,12 +211,15 @@ def validate_one_epoch(model, dataloader, criterion, device, threshold: float = 
             )
 
         loss = criterion(logits, masks)
-        dice = compute_batch_dice_from_logits(
-            logits=logits,
-            masks=masks,
-            threshold=threshold,
-        )
-
+        dice = None
+        if(binary):
+            dice = compute_batch_dice_from_logits(
+                logits=logits,
+                masks=masks,
+                threshold=threshold,
+            )
+        else:
+            dice = (1 - dice_loss_from_logits_multiclass(logits,masks.squeeze(1).long())).item()
         running_loss += loss.item() * images.size(0)
         running_dice += dice
         num_batches += 1
@@ -344,39 +357,57 @@ def train_and_evaluate(experiment_config_path):
     batch_size = int(model_cfg.get("batch_size", 4))
     num_workers = int(model_cfg.get("num_workers", 4))
 
+    #Allow experiment config to override model config
+    num_labels = model_cfg.get("num_labels", 1)
+    num_labels = exp_cfg.get("num_labels", num_labels)
+
+
+    #Choose dataset loader based upon number of labels to prevent binarization
+    Dataset = BinarySegmentationDataset
+
+    if num_labels > 1:
+        Dataset = GrayscaleSegmentationDataset
+    classes = dataset_cfg.get("classes", ["255"])
+
     device = torch.device(
         model_cfg.get("device", "cuda")
         if torch.cuda.is_available()
         else "cpu"
     )
 
-    train_dataset = BinarySegmentationDataset(
+    train_dataset = Dataset(
         images_dir=dataset_root / train_cfg["images"],
         masks_dir=dataset_root / train_cfg["masks"],
         image_size=image_size,
         augment=True,
+        classes=classes
     )
 
-    val_dataset = BinarySegmentationDataset(
+    val_dataset = Dataset(
         images_dir=dataset_root / val_cfg["images"],
         masks_dir=dataset_root / val_cfg["masks"],
         image_size=image_size,
         augment=False,
+        classes=classes
     )
 
-    test_dataset = BinarySegmentationDataset(
+    test_dataset = Dataset(
         images_dir=dataset_root / test_cfg["images"],
         masks_dir=dataset_root / test_cfg["masks"],
         image_size=image_size,
         augment=False,
+        classes=classes
     )
 
+    #Dataloaders modified to drop last to prevent issues with batch sizes that produce a batch with a single entry at the end of an epoch
+    #TODO test if this matters for testing/val
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
+        drop_last=True
     )
 
     val_loader = DataLoader(
@@ -385,6 +416,7 @@ def train_and_evaluate(experiment_config_path):
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
+        drop_last=True
     )
 
     test_loader = DataLoader(
@@ -393,21 +425,30 @@ def train_and_evaluate(experiment_config_path):
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
+        drop_last=True
     )
 
+    #Modified classes to use the actual number of labels
     model = build_deeplabv3plus_model(
         encoder_name=model_cfg.get("encoder_name", "resnet50"),
         encoder_weights=model_cfg.get("encoder_weights", "imagenet"),
         in_channels=int(model_cfg.get("in_channels", 3)),
-        classes=int(model_cfg.get("classes", 1)),
+        classes=int(num_labels),
     )
 
     model.to(device)
 
     loss_cfg = model_cfg.get("loss", {})
-    criterion = DiceBCELoss(
-        dice_weight=float(loss_cfg.get("dice_weight", 0.5)),
-        bce_weight=float(loss_cfg.get("bce_weight", 0.5)),
+
+    LossFunc = DiceBCELoss
+    if(num_labels>1):
+        LossFunc = DiceCELossModule
+
+    #Removed explicit declaration of parameter names for simpler handling
+    #TODO maybe should make a parent class both DiceBCELoss and DiceCELossModule inherit from
+    criterion = LossFunc(
+        float(loss_cfg.get("dice_weight", 0.5)),
+        float(loss_cfg.get("bce_weight", 0.5)),
     )
 
     optimizer = torch.optim.AdamW(
@@ -481,6 +522,7 @@ def train_and_evaluate(experiment_config_path):
             criterion=criterion,
             device=device,
             threshold=threshold,
+            binary=num_labels==1
         )
 
         if scheduler is not None:
@@ -600,12 +642,15 @@ def train_and_evaluate(experiment_config_path):
     threshold_sweep_cfg = model_cfg.get("threshold_sweep", {})
     save_cfg = exp_cfg.get("save", {})
 
+    #Appended to use classes derived from cfg
+    #TODO Currently uses unetpp's implementation in it's runner file, this should be moved away from both into it's own util, was surprised when this initially happened.
     val_records = collect_probabilities_for_split(
         model=model,
         dataloader=val_loader,
         dataset_root=dataset_root,
         split_cfg=val_cfg,
         device=device,
+        classes=classes
     )
 
     final_threshold = threshold
@@ -615,11 +660,12 @@ def train_and_evaluate(experiment_config_path):
             "values",
             [0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50],
         )
-
+        #TODO Same as probabilities. should be moved into own shared util rather than using unetpps
         threshold_df = run_threshold_sweep(
             records=val_records,
             thresholds=threshold_values,
             postprocessing_cfg=postprocessing_cfg,
+            classes=classes
         )
 
         save_threshold_sweep(threshold_df, output_root)
@@ -658,6 +704,7 @@ def train_and_evaluate(experiment_config_path):
         postprocessing_cfg=postprocessing_cfg,
         save_cfg=save_cfg,
         inference_time_ms_per_image=val_inference_time,
+        classes=classes
     )
 
     test_records = collect_probabilities_for_split(
@@ -666,6 +713,7 @@ def train_and_evaluate(experiment_config_path):
         dataset_root=dataset_root,
         split_cfg=test_cfg,
         device=device,
+        classes=classes
     )
 
     evaluate_records_and_save(
@@ -678,6 +726,7 @@ def train_and_evaluate(experiment_config_path):
         postprocessing_cfg=postprocessing_cfg,
         save_cfg=save_cfg,
         inference_time_ms_per_image=test_inference_time,
+        classes=classes
     )
 
     print(f"{model_name} training and evaluation finished for {dataset_name}.")

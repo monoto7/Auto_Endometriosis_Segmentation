@@ -9,7 +9,7 @@ from src.evaluation.visualize_metrics import visualize_dataset_model_split
 
 # uses baseline venv
 
-RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
+RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\OrganSegmentationTesting")
 
 CONFIGS_TO_RUN = [
     #PROJECT_ROOT / "configs" / "experiments" / "enid_deeplabv3plus_trained.yaml",
