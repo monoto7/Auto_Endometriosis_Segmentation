@@ -569,8 +569,8 @@ def evaluate_records_and_save(
                 "num_prompt_instances": 0,
             }
 
-        metric_row.update(metrics)
-        metric_rows.append(metric_row)
+            metric_row.update(metrics)
+            metric_rows.append(metric_row)
 
     inference_df = pd.DataFrame(inference_rows)
     metrics_df = pd.DataFrame(metric_rows)
