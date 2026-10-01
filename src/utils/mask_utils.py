@@ -2,7 +2,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 import cv2
-
+import torch
 
 def load_binary_mask(mask_path: Path) -> np.ndarray:
     mask = Image.open(mask_path).convert("L")
@@ -19,8 +19,7 @@ def load_mask(mask_path: Path) -> np.ndarray:
 
 def save_binary_mask(mask: np.ndarray, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    mask_uint8 = (mask > 0).astype(np.uint8) * 255
-    Image.fromarray(mask_uint8, mode="L").save(output_path)
+    Image.fromarray(mask.astype(np.uint8)).save(output_path)
 
 
 def merge_binary_masks(masks):
@@ -108,3 +107,91 @@ def remove_small_components(original_mask: np.ndarray, min_area_px: int, class_i
             cleaned[labels == label_id] = 1
 
     return cleaned.astype(np.uint8) * int(class_id)
+
+
+@torch.no_grad()
+def collect_probabilities_for_split(
+    model,
+    dataloader,
+    dataset_root: Path,
+    split_cfg: dict,
+    device,
+    classes = ["255"]
+):
+    model.eval()
+
+    images_dir = dataset_root / split_cfg["images"]
+    masks_dir = dataset_root / split_cfg["masks"]
+
+    records = []
+
+    for batch in dataloader:
+        images = batch["image"].to(device)
+        image_names = batch["image_name"]
+
+        logits = model(images)
+        #Softmax for mutliclass, sigmoid otherwise
+        probs = None
+        if(len(classes) != 1):
+            probs = torch.softmax(logits,dim=1).detach().cpu().numpy()
+        else:
+            probs = torch.sigmoid(logits).detach().cpu().numpy()
+        for i, image_name in enumerate(image_names):
+            mask_path = find_original_mask_path(masks_dir, image_name)
+
+            #preprocessing already binarizes masks, so just load mask as is instead.
+            gt_mask = load_mask(mask_path)
+
+            original_h, original_w = gt_mask.shape
+
+            rescaled = np.zeros((probs.shape[1],original_h,original_w))
+            for y in range(probs.shape[1]):
+                rescaled[y] = cv2.resize(
+                    probs[i, y],
+                    (original_w, original_h),
+                    interpolation=cv2.INTER_LINEAR,
+                )
+            
+
+            image_path = find_original_image_path(images_dir, image_name)
+
+            records.append(
+                {
+                    "image_name": image_name,
+                    "probability_map": rescaled,
+                    "gt_mask": gt_mask,
+                    "image_path": image_path,
+                    "mask_path": mask_path,
+                }
+            )
+
+    return records
+
+def find_original_mask_path(masks_dir: Path, image_name: str) -> Path:
+    stem = Path(image_name).stem
+
+    for extension in [".png", ".jpg", ".jpeg", ".tif", ".tiff"]:
+        candidate = masks_dir / f"{stem}{extension}"
+
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(f"Mask not found for image: {image_name} in {masks_dir}")
+
+def find_original_image_path(images_dir: Path, image_name: str) -> Path:
+    direct = images_dir / image_name
+
+    if direct.exists():
+        return direct
+
+    stem = Path(image_name).stem
+
+    for extension in [".jpg", ".jpeg", ".png", ".tif", ".tiff"]:
+        candidate = images_dir / f"{stem}{extension}"
+
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(f"Image not found: {image_name} in {images_dir}")
+
+

@@ -17,16 +17,17 @@ from src.datasets.segmentation_dataset import BinarySegmentationDataset
 from src.datasets.segmentation_dataset import GrayscaleSegmentationDataset
 from src.models.deeplabv3plus.deeplabv3plus_model import build_deeplabv3plus_model
 from src.runners.run_unetpp import (
-    collect_probabilities_for_split,
     estimate_inference_time_per_image,
-    evaluate_records_and_save,
-    run_threshold_sweep,
-    save_threshold_sweep,
 )
+
+from src.utils.stats_utils import run_threshold_sweep
+from src.utils.stats_utils import save_threshold_sweep
+from src.utils.stats_utils import evaluate_records_and_save
 
 #Standardize mask handling for multiclass case
 from src.utils.mask_utils import probability_to_mask
 from src.utils.mask_utils import load_mask
+from src.utils.mask_utils import collect_probabilities_for_split
 
 #Standardize loss handling for multiclass case
 from src.utils.loss_funcs import DiceCELossModule
