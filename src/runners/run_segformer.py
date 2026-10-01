@@ -17,14 +17,23 @@ from torch.utils.data import DataLoader
 
 from src.datasets.segmentation_dataset import BinarySegmentationDataset
 from src.datasets.segmentation_dataset import GrayscaleSegmentationDataset
+
 from src.models.segformer.segformer_model import build_segformer_model_multiclass
 from src.models.segformer.segformer_model import build_segformer_model_binary
+
 from src.evaluation.metrics import compute_binary_metrics
 from src.evaluation.metrics import compute_multiclass_metrics
+
+from src.utils.loss_funcs import combined_multiclass_loss
+
+from src.utils.stats_utils import evaluate_records_and_save
+from src.utils.stats_utils import run_threshold_sweep
+from src.utils.stats_utils import save_threshold_sweep
+
 from src.utils.visualization import save_overlay
+
 from src.utils.mask_utils import probability_to_mask
 from src.utils.mask_utils import load_mask
-
 
 
 def load_yaml(path):
@@ -59,33 +68,12 @@ def dice_loss_from_logits(logits, targets, eps=1e-7):
 
     return 1.0 - dice.mean()
 
-def dice_loss_from_logits_multiclass(logits, targets, eps=1e-7):
-    probs = torch.softmax(logits,dim=1)
-
-    #Need to handle each class seperately, so only final 2 are summed over
-    dims = (2, 3)
-
-    #Switch targets to be one_hot_encoded in each class
-    one_hot_targets = torch.nn.functional.one_hot(targets, num_classes=logits.shape[1]).permute(0, 3, 1, 2).float()
-
-    intersection = torch.sum(probs * one_hot_targets, dims)
-    cardinality = torch.sum(probs + one_hot_targets, dims)
-
-    dice = (2.0 * intersection + eps) / (cardinality + eps)
-
-    return 1.0 - dice.mean()
 
 def combined_loss(logits, targets, dice_weight=0.5, bce_weight=0.5):
     dice = dice_loss_from_logits(logits, targets)
     bce = torch_functional.binary_cross_entropy_with_logits(logits, targets)
 
     return dice_weight * dice + bce_weight * bce
-
-def combined_multiclass_loss(logits, targets, dice_weight=0.5, ce_weight=0.5):
-    dice = dice_loss_from_logits_multiclass(logits, targets)
-    ce = torch_functional.cross_entropy(logits, targets)
-
-    return dice_weight * dice + ce_weight * ce
 
 
 def save_binary_mask(mask: np.ndarray, output_path: Path):
@@ -161,6 +149,7 @@ def load_binary_mask(mask_path: Path):
     mask_np = np.array(mask)
 
     return (mask_np > 0).astype(np.uint8) * 255
+
 
 
 def train_one_epoch(model, dataloader, optimizer, device, loss_cfg, binary = True):
@@ -262,7 +251,7 @@ def validate_one_epoch(
                 metrics = compute_multiclass_metrics(
                     pred_mask=pred_mask==classVal,
                     gt_mask=gt_mask,
-                    class_g_value=classVal
+                    class_g_value=int(classVal)
                 )
 
                 dice_scores.append(metrics["dice"])
@@ -403,246 +392,6 @@ def collect_probabilities_for_split(
             )
 
     return records
-
-
-def run_threshold_sweep(records, thresholds, postprocessing_cfg, classes = ["255"]):
-    rows = []
-
-    for threshold in thresholds:
-        metric_rows = []
-
-        for record in records:
-            pred_mask = probability_to_mask(
-                probability_map=record["probability_map"],
-                threshold=float(threshold),
-                postprocessing_cfg=postprocessing_cfg,
-                #classes added to support multiclass
-                classes = classes,
-            )
-
-            for i in classes:
-                metrics = compute_multiclass_metrics(
-                    pred_mask= (pred_mask[int(i)]==int(i)).astype(int),
-                    gt_mask=record["gt_mask"],
-                    class_g_value=int(i)
-                )
-                metric_rows.append(metrics)
-            
-
-            
-
-        metric_df = pd.DataFrame(metric_rows)
-
-        row = {
-            "threshold": float(threshold),
-            "dice": float(metric_df["dice"].mean()),
-            "iou": float(metric_df["iou"].mean()),
-            "precision": float(metric_df["precision"].mean()),
-            "recall": float(metric_df["recall"].mean()),
-        }
-
-        if "specificity" in metric_df.columns:
-            row["specificity"] = float(metric_df["specificity"].mean())
-
-        rows.append(row)
-
-    return pd.DataFrame(rows)
-
-
-def save_threshold_sweep(threshold_df: pd.DataFrame, output_root: Path):
-    csv_path = output_root / "threshold_sweep_val.csv"
-    xlsx_path = output_root / "threshold_sweep_val.xlsx"
-
-    threshold_df.to_csv(csv_path, index=False)
-
-    with pd.ExcelWriter(xlsx_path, engine="openpyxl") as writer:
-        threshold_df.to_excel(writer, sheet_name="threshold_sweep_val", index=False)
-
-        worksheet = writer.sheets["threshold_sweep_val"]
-        worksheet.freeze_panes = "A2"
-
-        for column_cells in worksheet.columns:
-            max_length = 0
-            column_letter = column_cells[0].column_letter
-
-            for cell in column_cells:
-                value_length = len(str(cell.value)) if cell.value is not None else 0
-                max_length = max(max_length, value_length)
-
-            worksheet.column_dimensions[column_letter].width = min(
-                max(max_length + 2, 10),
-                25,
-            )
-
-    curves_dir = output_root / "training_curves"
-    curves_dir.mkdir(parents=True, exist_ok=True)
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-
-    ax.plot(
-        threshold_df["threshold"],
-        threshold_df["dice"],
-        marker="o",
-        label="Dice",
-        linewidth=2,
-    )
-
-    ax.plot(
-        threshold_df["threshold"],
-        threshold_df["precision"],
-        marker="o",
-        label="Precision",
-        linewidth=2,
-    )
-
-    ax.plot(
-        threshold_df["threshold"],
-        threshold_df["recall"],
-        marker="o",
-        label="Recall",
-        linewidth=2,
-    )
-
-    ax.set_title("Validation threshold sweep", fontsize=16, fontweight="bold")
-    ax.set_xlabel("Threshold", fontsize=14)
-    ax.set_ylabel("Metric", fontsize=14)
-    ax.tick_params(axis="both", labelsize=12)
-    ax.set_ylim(0.0, 1.0)
-    ax.grid(axis="y", alpha=0.25)
-    ax.legend(fontsize=12, frameon=False)
-
-    fig.tight_layout()
-
-    plot_path = curves_dir / "threshold_sweep_val.png"
-    fig.savefig(plot_path, dpi=500)
-    plt.close(fig)
-
-    print(f"Saved threshold sweep CSV:  {csv_path}")
-    print(f"Saved threshold sweep XLSX: {xlsx_path}")
-    print(f"Saved threshold sweep plot: {plot_path}")
-
-
-@torch.no_grad()
-def evaluate_records_and_save(
-    records,
-    dataset_name: str,
-    model_name: str,
-    output_root: Path,
-    split_name: str,
-    threshold: float,
-    postprocessing_cfg,
-    save_cfg,
-    inference_time_ms_per_image=None,
-    classes = ["255"],
-):
-    prompt_mode = "No_prompt"
-
-    out_dir = output_root / prompt_mode / split_name
-    merged_dir = out_dir / "merged_masks"
-    overlay_dir = out_dir / "overlays"
-
-    merged_dir.mkdir(parents=True, exist_ok=True)
-    overlay_dir.mkdir(parents=True, exist_ok=True)
-
-    inference_rows = []
-    metric_rows = []
-
-    for record in records:
-        image_name = record["image_name"]
-        image_path = record["image_path"]
-        mask_path = record["mask_path"]
-        gt_mask = record["gt_mask"]
-
-        pred_mask = probability_to_mask(
-            probability_map=record["probability_map"],
-            threshold=threshold,
-            postprocessing_cfg=postprocessing_cfg,
-            classes = classes
-        )
-
-        merged_name = f"{Path(image_name).stem}.png"
-        merged_path = merged_dir / merged_name
-
-        if save_cfg.get("merged_masks", True):
-            save_binary_mask(pred_mask, merged_path)
-
-        if save_cfg.get("overlays", True):
-            overlay_path = overlay_dir / f"{Path(image_name).stem}_overlay.png"
-
-            save_overlay(
-                image_path=image_path,
-                gt_mask=gt_mask,
-                pred_mask=pred_mask,
-                output_path=overlay_path,
-            )
-        
-        for class_name in classes:
-            #Use multiclass metrics and just assume 255, assuming pre-processing will make everything a binary mask in the non-multiclass case
-            metrics = compute_multiclass_metrics(
-                pred_mask=pred_mask,
-                gt_mask=gt_mask,
-                class_g_value=class_name
-            )
-
-            inference_rows.append(
-                {
-                    "dataset": dataset_name,
-                    "split": split_name,
-                    "model_name": model_name,
-                    "training_state": "trained",
-                    "prompt_mode": prompt_mode,
-                    "image_name": image_name,
-                    "mask_name": Path(mask_path).name,
-                    "class_id": class_name,
-                    "threshold": threshold,
-                    "postprocess_remove_small_components": postprocessing_cfg.get(
-                        "remove_small_components",
-                        False,
-                    ),
-                    "postprocess_min_component_area_px": postprocessing_cfg.get(
-                        "min_component_area_px",
-                        0,
-                    ),
-                    "inference_time_ms": inference_time_ms_per_image,
-                    "merged_mask_name": merged_name,
-                }
-            )
-
-            metric_row = {
-                "dataset": dataset_name,
-                "split": split_name,
-                "model_name": model_name,
-                "training_state": "trained",
-                "prompt_mode": prompt_mode,
-                "image_name": image_name,
-                "mask_name": Path(mask_path).name,
-                "class_id": class_name,
-                "num_prompt_instances": 0,
-            }
-
-            metric_row.update(metrics)
-            metric_rows.append(metric_row)
-
-    inference_df = pd.DataFrame(inference_rows)
-    metrics_df = pd.DataFrame(metric_rows)
-
-    inference_csv = out_dir / "inference_results.csv"
-    metrics_csv = out_dir / "metrics_image_level.csv"
-    summary_csv = out_dir / "metrics_summary.csv"
-
-    inference_df.to_csv(inference_csv, index=False)
-    metrics_df.to_csv(metrics_csv, index=False)
-
-    numeric_cols = metrics_df.select_dtypes(include="number").columns
-
-    summary_df = metrics_df[numeric_cols].agg(
-        ["mean", "std", "median", "min", "max"]
-    ).T
-
-    summary_df.to_csv(summary_csv)
-
-    return metrics_df
-
 
 @torch.no_grad()
 def estimate_inference_time_per_image(model, dataloader, device):
