@@ -93,7 +93,6 @@ def read_rgb_image(image_path: Path) -> np.ndarray:
 def read_label_mask(mask_path: Path) -> np.ndarray:
     mask = Image.open(mask_path).convert("L")
     mask_np = np.array(mask)
-
     # nnU-Net label map:
     # 0 = background
     # 1 = lesion

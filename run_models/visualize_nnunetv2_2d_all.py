@@ -8,12 +8,13 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.evaluation.visualize_metrics import visualize_dataset_model_split
 
 
-RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
+RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
 
 DATASETS_TO_VISUALIZE = [
-    "ENID",
-    "GLENDA",
-    "GLENDA_clean",
+    #"ENID",
+    #"GLENDA",
+    #"GLENDA_clean",
+    "GynSurg"
 ]
 
 SPLITS_TO_VISUALIZE = [

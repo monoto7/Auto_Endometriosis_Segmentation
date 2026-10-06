@@ -20,23 +20,28 @@ from src.utils.nnunet_env import (
 )
 
 
-RESULTS_ROOT = Path(r"F:\Results\SAM_Benchmarking")
+RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
 
 DATASETS = [
+    # {
+    #     "dataset_name": "ENID",
+    #     "dataset_folder": "Dataset501_ENID",
+    #     "output_name": "ENID",
+    # },
+    # {
+    #     "dataset_name": "GLENDA",
+    #     "dataset_folder": "Dataset502_GLENDA",
+    #     "output_name": "GLENDA",
+    # },
+    # {
+    #     "dataset_name": "GLENDA_clean",
+    #     "dataset_folder": "Dataset503_GLENDA_clean",
+    #     "output_name": "GLENDA_clean",
+    # },
     {
-        "dataset_name": "ENID",
-        "dataset_folder": "Dataset501_ENID",
-        "output_name": "ENID",
-    },
-    {
-        "dataset_name": "GLENDA",
-        "dataset_folder": "Dataset502_GLENDA",
-        "output_name": "GLENDA",
-    },
-    {
-        "dataset_name": "GLENDA_clean",
-        "dataset_folder": "Dataset503_GLENDA_clean",
-        "output_name": "GLENDA_clean",
+            "dataset_name": "GynSurg",
+            "dataset_folder": "Dataset504_GynSurg",
+            "output_name": "GynSurg",
     },
 ]
 
