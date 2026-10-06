@@ -11,7 +11,7 @@ from src.models.sam2.sam2_wrapper import SAM2FrozenWrapper
 from src.utils.mask_utils import (
     load_binary_mask,
     load_mask,
-    save_binary_mask,
+    save_mask,
     merge_binary_masks,
     find_image_path,
     empty_mask_like_image,
@@ -185,7 +185,7 @@ def run_one_prompt_mode(
             instance_path = instance_dir / instance_name
 
             if save_cfg.get("instance_masks", True):
-                save_binary_mask(pred_mask, instance_path)
+                save_mask(pred_mask, instance_path)
 
             inference_rows.append({
                 "dataset": dataset_name,
@@ -222,14 +222,14 @@ def run_one_prompt_mode(
         merged_path = merged_dir / merged_name
 
         if save_cfg.get("merged_masks", True):
-            save_binary_mask(merged_mask, merged_path)
+            save_mask(merged_mask, merged_path)
 
         #Handling for seperate classes to save them as seperate masks
         if save_cfg.get("class_merged_masks", True):
             for key in class_merged_pred:
                 class_merged_name =  f"classes/{Path(image_name).stem}_{key:03d}.png"
                 class_merged_path = merged_dir / class_merged_name
-                save_binary_mask(class_merged_pred[key], class_merged_path)
+                save_mask(class_merged_pred[key], class_merged_path)
         
                     
         
