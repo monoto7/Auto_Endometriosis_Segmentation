@@ -15,4 +15,4 @@ save:
   overlays: true
   checkpoints: true
 
-num_labels: 4
+num_labels: 3
