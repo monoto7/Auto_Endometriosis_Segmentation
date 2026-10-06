@@ -12,6 +12,9 @@ from src.models.yolo_seg.yolo_seg_model import build_yolo_seg_model
 from src.evaluation.metrics import compute_binary_metrics
 from src.utils.visualization import save_overlay
 
+#Utils for supporting multiclass case
+from src.utils.mask_utils import load_mask
+from src.utils.mask_utils import save_mask
 
 IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"]
 
@@ -21,11 +24,6 @@ def load_yaml(path):
 
     with open(path, "r", encoding="utf-8") as file:
         return yaml.safe_load(file)
-
-
-def save_binary_mask(mask: np.ndarray, output_path: Path):
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(mask.astype(np.uint8)).save(output_path)
 
 
 def find_original_image_path(images_dir: Path, image_name: str) -> Path:
@@ -162,6 +160,7 @@ def result_to_merged_mask_and_prompt_rows(
     image_name: str,
     gt_shape,
     conf_threshold: float,
+    classes:list
 ):
     height, width = gt_shape
 
@@ -189,8 +188,7 @@ def result_to_merged_mask_and_prompt_rows(
 
         if confidence < conf_threshold:
             continue
-
-        instance_mask = (masks_np[instance_index] > 0.5).astype(np.uint8) * 255
+        instance_mask = (masks_np[instance_index] > 0.5).astype(np.uint8) * classes[int(cls_np[instance_index])]
 
         if instance_mask.shape != (height, width):
             instance_mask = cv2.resize(
@@ -243,6 +241,7 @@ def evaluate_yolo_split(
     split_name: str,
     model_cfg: dict,
     save_cfg: dict,
+    classes : list = ["255"],
 ):
     prompt_mode = "No_prompt"
 
@@ -277,7 +276,7 @@ def evaluate_yolo_split(
     for image_path in image_paths:
         image_name = image_path.name
         mask_path = find_original_mask_path(masks_dir, image_name)
-        gt_mask = load_binary_mask(mask_path)
+        gt_mask = load_mask(mask_path)
 
         if torch.cuda.is_available():
             torch.cuda.synchronize()
@@ -308,6 +307,7 @@ def evaluate_yolo_split(
             image_name=image_name,
             gt_shape=gt_mask.shape,
             conf_threshold=conf,
+            classes=classes
         )
 
         all_prompt_rows.extend(prompt_rows)
@@ -316,7 +316,7 @@ def evaluate_yolo_split(
         merged_path = merged_dir / merged_name
 
         if save_cfg.get("merged_masks", True):
-            save_binary_mask(pred_mask, merged_path)
+            save_mask(pred_mask, merged_path)
 
         if save_cfg.get("overlays", True):
             overlay_path = overlay_dir / f"{image_path.stem}_overlay.png"
@@ -442,6 +442,8 @@ def train_and_evaluate(experiment_config_path):
     val_cfg = dataset_cfg["splits"][val_split]
     test_cfg = dataset_cfg["splits"][test_split]
 
+    classes = dataset_cfg["classes"]
+
     if not yolo_dataset_yaml.exists():
         raise FileNotFoundError(f"YOLO dataset YAML not found: {yolo_dataset_yaml}")
 
@@ -512,6 +514,7 @@ def train_and_evaluate(experiment_config_path):
         split_name="val",
         model_cfg=model_cfg,
         save_cfg=save_cfg,
+        classes=classes
     )
 
     evaluate_yolo_split(
@@ -524,6 +527,7 @@ def train_and_evaluate(experiment_config_path):
         split_name="test",
         model_cfg=model_cfg,
         save_cfg=save_cfg,
+        classes=classes
     )
 
     print(f"{model_name} training and evaluation finished for {dataset_name}.")

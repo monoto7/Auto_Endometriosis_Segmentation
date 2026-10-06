@@ -13,30 +13,30 @@ his conversion treats connected components in your binary mask as pseudo-instanc
 If two lesions touch, YOLO will see them as one instance.
 '''
 DATASETS = [
-    {
-        "dataset_name": "ENID",
-        "standardized_root": Path(
-            r"F:\Datasets\Standardized datasets\ENID\ENID 60_20_20 Split"
-        ),
-        "yolo_root": Path(r"F:\Datasets\YOLO datasets\ENID_yolo_seg"),
-        "yaml_name": "enid_yolo_seg.yaml",
-    },
-    {
-        "dataset_name": "GLENDA",
-        "standardized_root": Path(
-            r"F:\Datasets\Standardized datasets\GLENDA\GLENDA 60_20_20 split"
-        ),
-        "yolo_root": Path(r"F:\Datasets\YOLO datasets\GLENDA_yolo_seg"),
-        "yaml_name": "glenda_yolo_seg.yaml",
-    },
-    {
-        "dataset_name": "GLENDA_clean",
-        "standardized_root": Path(
-            r"F:\Datasets\Standardized datasets\GLENDA_clean\GLENDA_clean 60_20_20 split"
-        ),
-        "yolo_root": Path(r"F:\Datasets\YOLO datasets\GLENDA_clean_yolo_seg"),
-        "yaml_name": "glenda_clean_yolo_seg.yaml",
-    },
+    # {
+    #     "dataset_name": "ENID",
+    #     "standardized_root": Path(
+    #         r"F:\Datasets\Standardized datasets\ENID\ENID 60_20_20 Split"
+    #     ),
+    #     "yolo_root": Path(r"F:\Datasets\YOLO datasets\ENID_yolo_seg"),
+    #     "yaml_name": "enid_yolo_seg.yaml",
+    # },
+    # {
+    #     "dataset_name": "GLENDA",
+    #     "standardized_root": Path(
+    #         r"F:\Datasets\Standardized datasets\GLENDA\GLENDA 60_20_20 split"
+    #     ),
+    #     "yolo_root": Path(r"F:\Datasets\YOLO datasets\GLENDA_yolo_seg"),
+    #     "yaml_name": "glenda_yolo_seg.yaml",
+    # },
+    # {
+    #     "dataset_name": "GLENDA_clean",
+    #     "standardized_root": Path(
+    #         r"F:\Datasets\Standardized datasets\GLENDA_clean\GLENDA_clean 60_20_20 split"
+    #     ),
+    #     "yolo_root": Path(r"F:\Datasets\YOLO datasets\GLENDA_clean_yolo_seg"),
+    #     "yaml_name": "glenda_clean_yolo_seg.yaml",
+    # },
     {
         "dataset_name": "GynSurg",
         "standardized_root": Path(
@@ -44,6 +44,7 @@ DATASETS = [
         ),
         "yolo_root": Path(r"C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\YOLO datasets\GynSurg_yolo_seg"),
         "yaml_name": "GynSurg_yolo_seg.yaml",
+        "label_names" : {85:"Uterus",170:"Fallopian Tubes",255:"Ovaries"}
     },
 ]
 
@@ -140,7 +141,7 @@ def fallback_box_polygon(component_mask: np.ndarray, width: int, height: int):
     return polygon
 
 
-def mask_to_yolo_segmentation_lines(mask_np: np.ndarray):
+def mask_to_yolo_segmentation_lines(mask_np: np.ndarray, label: int):
     height, width = mask_np.shape
 
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
@@ -194,7 +195,7 @@ def mask_to_yolo_segmentation_lines(mask_np: np.ndarray):
         if polygon is None:
             continue
 
-        values = ["0"] + [f"{value:.6f}" for value in polygon]
+        values = [str(label)] + [f"{value:.6f}" for value in polygon]
         label_lines.append(" ".join(values))
         component_count += 1
 
@@ -215,7 +216,7 @@ def write_label_file(label_lines, output_label_path: Path):
             file.write("\n")
 
 
-def convert_split(dataset_name: str, standardized_root: Path, yolo_root: Path, split: str):
+def convert_split(dataset_name: str, standardized_root: Path, yolo_root: Path, split: str, label_names={255:"lesion"}):
     images_dir = standardized_root / split / "images"
     masks_dir = standardized_root / split / "masks"
 
@@ -240,9 +241,13 @@ def convert_split(dataset_name: str, standardized_root: Path, yolo_root: Path, s
 
     for image_path in tqdm(image_paths, desc=f"{dataset_name} {split}"):
         mask_path = find_matching_mask(masks_dir, image_path)
-        mask_np = load_binary_mask(mask_path)
-
-        label_lines, component_count = mask_to_yolo_segmentation_lines(mask_np)
+        mask_np = load_mask(mask_path)
+        label_lines = []
+        component_count = 0
+        for i,key in enumerate(label_names):
+            label_linesOut, component_count = mask_to_yolo_segmentation_lines(mask_np==key,i)
+            label_lines.extend(label_linesOut)
+            component_count+=component_count
 
         output_image_path = output_images_dir / image_path.name
         output_label_path = output_labels_dir / f"{image_path.stem}.txt"
@@ -265,17 +270,19 @@ def convert_split(dataset_name: str, standardized_root: Path, yolo_root: Path, s
     return rows
 
 
-def write_dataset_yaml(yolo_root: Path, yaml_name: str):
+def write_dataset_yaml(yolo_root: Path, yaml_name: str, label_names = {255:"lesion"}):
     yaml_path = yolo_root / yaml_name
-
+    
+    #Switching to integer labelling
+    names = {}
+    for i,key in enumerate(label_names):
+        names[i]=label_names[key]
     data = {
         "path": str(yolo_root).replace("\\", "/"),
         "train": "images/train",
         "val": "images/val",
         "test": "images/test",
-        "names": {
-            0: "lesion",
-        },
+        "names": names,
     }
 
     with open(yaml_path, "w", encoding="utf-8") as file:
@@ -325,6 +332,7 @@ def convert_dataset(dataset_cfg):
     standardized_root = dataset_cfg["standardized_root"]
     yolo_root = dataset_cfg["yolo_root"]
     yaml_name = dataset_cfg["yaml_name"]
+    label_names = dataset_cfg.get("label_names",{255:"lesion"})
 
     if yolo_root.exists():
         print(f"Removing existing YOLO dataset folder: {yolo_root}")
@@ -346,6 +354,7 @@ def convert_dataset(dataset_cfg):
             standardized_root=standardized_root,
             yolo_root=yolo_root,
             split=split,
+            label_names=label_names
         )
 
         all_rows.extend(split_rows)
@@ -353,6 +362,7 @@ def convert_dataset(dataset_cfg):
     yaml_path = write_dataset_yaml(
         yolo_root=yolo_root,
         yaml_name=yaml_name,
+        label_names=label_names
     )
 
     save_conversion_report(

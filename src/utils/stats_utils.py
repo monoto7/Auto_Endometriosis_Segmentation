@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from src.evaluation.metrics import compute_multiclass_metrics
 from src.utils.mask_utils import probability_to_mask
-from src.utils.mask_utils import save_binary_mask
+from src.utils.mask_utils import save_mask
 from src.utils.visualization import save_overlay
 
 
@@ -53,7 +53,7 @@ def evaluate_records_and_save(
         merged_path = merged_dir / merged_name
 
         if save_cfg.get("merged_masks", True):
-            save_binary_mask(pred_mask, merged_path)
+            save_mask(pred_mask, merged_path)
 
         if save_cfg.get("overlays", True):
             overlay_path = overlay_dir / f"{Path(image_name).stem}_overlay.png"

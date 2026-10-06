@@ -17,7 +17,7 @@ def load_mask(mask_path: Path) -> np.ndarray:
     return mask_np
 
 
-def save_binary_mask(mask: np.ndarray, output_path: Path) -> None:
+def save_mask(mask: np.ndarray, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(mask.astype(np.uint8)).save(output_path)
 
