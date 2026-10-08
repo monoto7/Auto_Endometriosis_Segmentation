@@ -9,14 +9,20 @@ def compute_binary_metrics(pred_mask: np.ndarray, gt_mask: np.ndarray) -> dict:
     fp = np.logical_and(pred, np.logical_not(gt)).sum()
     fn = np.logical_and(np.logical_not(pred), gt).sum()
     tn = np.logical_and(np.logical_not(pred), np.logical_not(gt)).sum()
-
-    eps = 1e-8
-
-    dice = (2 * tp) / (2 * tp + fp + fn + eps)
-    iou = tp / (tp + fp + fn + eps)
-    precision = tp / (tp + fp + eps)
-    recall = tp / (tp + fn + eps)
-    specificity = tn / (tn + fp + eps)
+    
+    dice = np.nan
+    iou = np.nan
+    precision = np.nan
+    recall = np.nan
+    if(gt.any() or pred.any()):
+        dice = (2 * tp) / (2 * tp + fp + fn + eps)
+        iou = tp / (tp + fp + fn + eps)
+    if(pred.any()):
+        precision = tp / (tp + fp + eps)
+    if(gt.any()):
+        recall = tp / (tp + fn + eps)
+    if(not gt.all()):
+        specificity = tn / (tn + fp + eps)
 
     return {
         "dice": float(dice),
@@ -42,14 +48,22 @@ def compute_multiclass_metrics(pred_mask: np.ndarray, gt_mask: np.ndarray, class
     fp = np.logical_and(pred, np.logical_not(gt)).sum()
     fn = np.logical_and(np.logical_not(pred), gt).sum()
     tn = np.logical_and(np.logical_not(pred), np.logical_not(gt)).sum()
-
     eps = 1e-8
 
-    dice = (2 * tp) / (2 * tp + fp + fn + eps)
-    iou = tp / (tp + fp + fn + eps)
-    precision = tp / (tp + fp + eps)
-    recall = tp / (tp + fn + eps)
-    specificity = tn / (tn + fp + eps)
+    dice = np.nan
+    iou = np.nan
+    precision = np.nan
+    recall = np.nan
+    if(gt.any() or pred.any()):
+        dice = (2 * tp) / (2 * tp + fp + fn + eps)
+        iou = tp / (tp + fp + fn + eps)
+    if(pred.any()):
+        precision = tp / (tp + fp + eps)
+    if(gt.any()):
+        recall = tp / (tp + fn + eps)
+    if(not gt.all()):
+        specificity = tn / (tn + fp + eps)
+
     return {
         "dice": float(dice),
         "iou": float(iou),
