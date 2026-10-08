@@ -164,14 +164,14 @@ def run_threshold_sweep(records, thresholds, postprocessing_cfg, classes = ["255
 
         row = {
             "threshold": float(threshold),
-            "dice": float(metric_df["dice"].mean()),
-            "iou": float(metric_df["iou"].mean()),
-            "precision": float(metric_df["precision"].mean()),
-            "recall": float(metric_df["recall"].mean()),
+            "dice": float(np.nanmean(metric_df["dice"])),
+            "iou": float(np.nanmean(metric_df["iou"])),
+            "precision": float(np.nanmean(metric_df["precision"])),
+            "recall": float(np.nanmean(metric_df["recall"])),
         }
 
         if "specificity" in metric_df.columns:
-            row["specificity"] = float(metric_df["specificity"].mean())
+            row["specificity"] = float(np.nanmean(metric_df["specificity"]))
 
         rows.append(row)
 
