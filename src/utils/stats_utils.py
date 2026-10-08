@@ -70,7 +70,7 @@ def evaluate_records_and_save(
             metrics = compute_multiclass_metrics(
                 pred_mask=pred_mask,
                 gt_mask=gt_mask,
-                class_g_value=class_name
+                class_g_value=int(class_name)
             )
     
 
@@ -83,7 +83,7 @@ def evaluate_records_and_save(
                     "prompt_mode": prompt_mode,
                     "image_name": image_name,
                     "mask_name": Path(mask_path).name,
-                    "class_id": class_name,
+                    "class_id": int(class_name),
                     "threshold": threshold,
                     "postprocess_remove_small_components": postprocessing_cfg.get(
                         "remove_small_components",
@@ -106,7 +106,7 @@ def evaluate_records_and_save(
                 "prompt_mode": prompt_mode,
                 "image_name": image_name,
                 "mask_name": Path(mask_path).name,
-                "class_id": class_name,
+                "class_id": int(class_name),
                 "num_prompt_instances": 0,
             }
 
@@ -164,14 +164,14 @@ def run_threshold_sweep(records, thresholds, postprocessing_cfg, classes = ["255
 
         row = {
             "threshold": float(threshold),
-            "dice": float(np.nanmean(metric_df["dice"])),
-            "iou": float(np.nanmean(metric_df["iou"])),
-            "precision": float(np.nanmean(metric_df["precision"])),
-            "recall": float(np.nanmean(metric_df["recall"])),
+            "dice": float(metric_df["dice"].mean(skipna=True)),
+            "iou": float(metric_df["iou"].mean(skipna=True)),
+            "precision": float(metric_df["precision"].mean(skipna=True)),
+            "recall": float(metric_df["recall"].mean(skipna=True)),
         }
 
         if "specificity" in metric_df.columns:
-            row["specificity"] = float(np.nanmean(metric_df["specificity"]))
+            row["specificity"] = float(metric_df["specificity"].mean(skipna=True))
 
         rows.append(row)
 
