@@ -1,0 +1,18 @@
+experiment_name: "GynSurg_255_UNetPP_Trained"
+
+dataset_config: "configs/datasets/GynSurg255.yaml"
+model_config: "configs/models/unetpp.yaml"
+
+output_root: "/data/m_meyer/AES/OrganSegmentationResults/GynSurg255/UNetPP/trained"
+
+splits:
+  train: "train"
+  val: "val"
+  test: "test"
+
+save:
+  merged_masks: true
+  overlays: true
+  checkpoints: true
+
+num_labels: 1

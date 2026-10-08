@@ -1,0 +1,15 @@
+experiment_name: "GynSurg_85_SegFormer_Trained"
+dataset_config: "configs/datasets/gynsurg85.yaml"
+model_config: "configs/models/segformer.yaml"
+output_root: "/data/m_meyer/AES/OrganSegmentationResults/GynSurg85/SegFormer/trained/"
+
+splits:
+  train: train
+  val: val
+  test: test
+
+save:
+  merged_masks: true
+  overlays: true
+
+num_labels: 1
