@@ -462,7 +462,7 @@ def visualize_dataset_model_split(
         class_ids = image_metrics_df['class_id'].unique()
     
     
-    if len(class_ids>1):
+    if len(class_ids)>1:
         for id in class_ids:
             combined_csv_class = output_dir / f"{dataset_name}_{split}_{id}_combined_prompt_metrics.csv"
             image_metrics_df.loc[image_metrics_df['class_id'] == id].to_csv(combined_csv_class, index=False)
@@ -473,7 +473,7 @@ def visualize_dataset_model_split(
     print(f"Saved combined image-level CSV: {combined_csv}")
 
     if not inference_df.empty:
-        if len(class_ids>1):
+        if len(class_ids)>1:
             for id in class_ids:
                 combined_inference_csv_class = output_dir / f"{dataset_name}_{split}_{id}_combined_inference_results.csv"
                 inference_df.loc[inference_df['class_id'] == id].to_csv(combined_inference_csv_class, index=False)
@@ -482,7 +482,7 @@ def visualize_dataset_model_split(
         inference_df.to_csv(combined_inference_csv, index=False)
         print(f"Saved combined inference CSV: {combined_inference_csv}")
 
-    if len(class_ids>1):
+    if len(class_ids)>1:
         for id in class_ids:
             excel_path = save_excel_summary(
                 image_metrics_df=image_metrics_df.loc[image_metrics_df['class_id'] == id],
@@ -504,7 +504,7 @@ def visualize_dataset_model_split(
     )
     print(f"Saved Excel summary: {excel_path}")
 
-    if len(class_ids>1):
+    if len(class_ids)>1:
         for id in class_ids:
             for metric in METRICS_TO_PLOT:
                 if metric not in image_metrics_df.columns:
