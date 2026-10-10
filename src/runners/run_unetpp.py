@@ -526,14 +526,13 @@ def train_and_evaluate(experiment_config_path):
 
     for epoch in range(1, epochs + 1):
         current_lr = float(optimizer.param_groups[0]["lr"])
-
         train_loss = train_one_epoch(
             model=model,
             dataloader=train_loader,
             optimizer=optimizer,
             device=device,
             loss_cfg=model_cfg.get("loss", {}),
-            binary=len(classes) > 1
+            binary=classcount == 1
         )
 
         val_stats = validate_one_epoch(
