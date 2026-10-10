@@ -117,7 +117,7 @@ def train_one_epoch(model, dataloader, optimizer, device, loss_cfg, binary=True)
         logits = model(images)
         lossFunc = combined_loss
         
-        if(~binary):
+        if(not binary):
             lossFunc = combined_multiclass_loss
         loss = lossFunc(
             logits=logits,
@@ -190,11 +190,11 @@ def validate_one_epoch(
 
             gt_mask = masks_np[i]
             for i in range(len(classes)):
-                gt_mask[gt_mask==i+1] = classes[i]
+                gt_mask[gt_mask==i+1] = int(classes[i])
 
             for classVal in classes:
                 metrics = compute_multiclass_metrics(
-                    pred_mask=pred_mask==classVal,
+                    pred_mask=pred_mask==int(classVal),
                     gt_mask=gt_mask,
                     class_g_value=int(classVal)
                 )
@@ -205,10 +205,10 @@ def validate_one_epoch(
                 recall_scores.append(metrics["recall"])
     return {
         "val_loss": float(np.mean(losses)),
-        "val_dice": float(np.mean(dice_scores)),
-        "val_iou": float(np.mean(iou_scores)),
-        "val_precision": float(np.mean(precision_scores)),
-        "val_recall": float(np.mean(recall_scores)),
+        "val_dice": float(np.nanmean(dice_scores)),
+        "val_iou": float(np.nanmean(iou_scores)),
+        "val_precision": float(np.nanmean(precision_scores)),
+        "val_recall": float(np.nanmean(recall_scores)),
     }
 
 
