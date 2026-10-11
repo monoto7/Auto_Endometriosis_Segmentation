@@ -1,0 +1,18 @@
+experiment_name: "GynSurg_85_YOLO11s_seg"
+
+dataset_config: "configs/datasets/gynsurg85.yaml"
+model_config: "configs/models/yolo11s_seg.yaml"
+
+yolo_dataset_yaml: "/data/m_meyer/AES/YOLO datasets/GynSurg_85_yolo_seg/GynSurg_85_yolo_seg.yaml"
+
+output_root: "/data/m_meyer/AES/OrganSegmentationResults/GynSurg85/YOLO11s_seg/trained/"
+
+splits:
+  train: train
+  val: val
+  test: test
+
+save:
+  merged_masks: true
+  overlays: true
+  auto_box_prompts: true
