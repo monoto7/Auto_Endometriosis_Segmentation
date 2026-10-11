@@ -1,9 +1,9 @@
 experiment_name: "GynSurg_DeepLabV3Plus_Trained"
 
-dataset_config: "configs/datasets/GynSurg.yaml"
+dataset_config: "configs/datasets/gynsurg.yaml"
 model_config: "configs/models/deeplabv3plus.yaml"
 
-output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/DeepLabV3Plus/trained"
+output_root: "/data/m_meyer/AES/OrganSegmentationResults/GynSurg/DeepLabV3Plus/trained"
 
 splits:
   train: train

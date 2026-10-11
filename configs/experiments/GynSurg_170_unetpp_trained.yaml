@@ -1,6 +1,6 @@
 experiment_name: "GynSurg_170_UNetPP_Trained"
 
-dataset_config: "configs/datasets/GynSurg170.yaml"
+dataset_config: "configs/datasets/gynsurg170.yaml"
 model_config: "configs/models/unetpp.yaml"
 
 output_root: "/data/m_meyer/AES/OrganSegmentationResults/GynSurg170/UNetPP/trained"

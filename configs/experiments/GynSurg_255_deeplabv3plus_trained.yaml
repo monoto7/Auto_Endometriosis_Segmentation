@@ -1,6 +1,6 @@
 experiment_name: "GynSurg_255_DeepLabV3Plus_Trained"
 
-dataset_config: "configs/datasets/GynSurg255.yaml"
+dataset_config: "configs/datasets/gynsurg255.yaml"
 model_config: "configs/models/deeplabv3plus.yaml"
 
 output_root: "/data/m_meyer/AES/OrganSegmentationResults/GynSurg255/DeepLabV3Plus/trained"
