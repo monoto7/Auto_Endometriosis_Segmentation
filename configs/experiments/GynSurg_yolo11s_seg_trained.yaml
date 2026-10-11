@@ -3,9 +3,9 @@ experiment_name: "GynSurg_YOLO11s_seg"
 dataset_config: "configs/datasets/GynSurg.yaml"
 model_config: "configs/models/yolo11s_seg.yaml"
 
-yolo_dataset_yaml: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\YOLO datasets\\GynSurg_yolo_seg\\GynSurg_yolo_seg.yaml"
+yolo_dataset_yaml: "data/m_meyer/AES/YOLO datasets/GynSurg_yolo_seg/GynSurg_yolo_seg.yaml"
 
-output_root: "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC/OrganSegmentationTesting/GynSurg/YOLO11s_seg/trained/"
+output_root: "/data/m_meyer/AES/OrganSegmentationResults/GynSurg/GynSurg/YOLO11s_seg/trained/"
 
 splits:
   train: train
