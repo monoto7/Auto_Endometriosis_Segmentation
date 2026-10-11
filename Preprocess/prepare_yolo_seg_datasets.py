@@ -40,11 +40,38 @@ DATASETS = [
     {
         "dataset_name": "GynSurg",
         "standardized_root": Path(
-            r"C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\SplitDatasets\\GynSurg"
+            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/"
         ),
-        "yolo_root": Path(r"C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\YOLO datasets\GynSurg_yolo_seg"),
+        "yolo_root": Path(r"/data/m_meyer/AES/YOLO datasets/GynSurg_yolo_seg"),
         "yaml_name": "GynSurg_yolo_seg.yaml",
         "label_names" : {85:"Uterus",170:"Fallopian Tubes",255:"Ovaries"}
+    },
+    {
+        "dataset_name": "GynSurg85",
+        "standardized_root": Path(
+            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/85"
+        ),
+        "yolo_root": Path(r"/data/m_meyer/AES/YOLO datasets/GynSurg_85_yolo_seg"),
+        "yaml_name": "GynSurg_85_yolo_seg.yaml",
+        "label_names" : {255:"Uterus"}
+    },
+    {
+        "dataset_name": "GynSurg170",
+        "standardized_root": Path(
+            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/170"
+        ),
+        "yolo_root": Path(r"/data/m_meyer/AES/YOLO datasets/GynSurg_170_yolo_seg"),
+        "yaml_name": "GynSurg_170_yolo_seg.yaml",
+        "label_names" : {255:"Fallopian Tubes"}
+    },
+    {
+        "dataset_name": "GynSurg255",
+        "standardized_root": Path(
+            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/255"
+        ),
+        "yolo_root": Path(r"/data/m_meyer/AES/YOLO datasets/GynSurg_255_yolo_seg"),
+        "yaml_name": "GynSurg_255_yolo_seg.yaml",
+        "label_names" : {255:"Ovaries"}
     },
 ]
 

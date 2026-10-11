@@ -10,6 +10,7 @@ from PIL import Image
 
 from src.models.yolo_seg.yolo_seg_model import build_yolo_seg_model
 from src.evaluation.metrics import compute_binary_metrics
+from src.evaluation.metrics import compute_multiclass_metrics
 from src.utils.visualization import save_overlay
 
 #Utils for supporting multiclass case
@@ -188,7 +189,7 @@ def result_to_merged_mask_and_prompt_rows(
 
         if confidence < conf_threshold:
             continue
-        instance_mask = (masks_np[instance_index] > 0.5).astype(np.uint8) * classes[int(cls_np[instance_index])]
+        instance_mask = (masks_np[instance_index] > 0.5).astype(np.uint8) * int(classes[int(cls_np[instance_index])])
 
         if instance_mask.shape != (height, width):
             instance_mask = cv2.resize(
@@ -327,14 +328,33 @@ def evaluate_yolo_split(
                 pred_mask=pred_mask,
                 output_path=overlay_path,
             )
+        for class_name in classes:
+            metrics = compute_multiclass_metrics(
+                        pred_mask=pred_mask==int(class_name),
+                        gt_mask=gt_mask,
+                        class_g_value=int(class_name)
+            )
 
-        metrics = compute_binary_metrics(
-            pred_mask=pred_mask,
-            gt_mask=gt_mask,
-        )
+            inference_rows.append(
+                {
+                    "dataset": dataset_name,
+                    "split": split_name,
+                    "model_name": model_name,
+                    "training_state": "trained",
+                    "prompt_mode": prompt_mode,
+                    "image_name": image_name,
+                    "mask_name": mask_path.name,
+                    "class_id": int(class_name),
+                    "confidence_threshold": conf,
+                    "iou_threshold": iou,
+                    "max_det": max_det,
+                    "num_pred_instances": len(prompt_rows),
+                    "inference_time_ms": elapsed_ms,
+                    "merged_mask_name": merged_name,
+                }
+            )
 
-        inference_rows.append(
-            {
+            metric_row = {
                 "dataset": dataset_name,
                 "split": split_name,
                 "model_name": model_name,
@@ -342,28 +362,12 @@ def evaluate_yolo_split(
                 "prompt_mode": prompt_mode,
                 "image_name": image_name,
                 "mask_name": mask_path.name,
-                "confidence_threshold": conf,
-                "iou_threshold": iou,
-                "max_det": max_det,
-                "num_pred_instances": len(prompt_rows),
-                "inference_time_ms": elapsed_ms,
-                "merged_mask_name": merged_name,
+                "class_id": int(class_name),
+                "num_prompt_instances": len(prompt_rows),
             }
-        )
 
-        metric_row = {
-            "dataset": dataset_name,
-            "split": split_name,
-            "model_name": model_name,
-            "training_state": "trained",
-            "prompt_mode": prompt_mode,
-            "image_name": image_name,
-            "mask_name": mask_path.name,
-            "num_prompt_instances": len(prompt_rows),
-        }
-
-        metric_row.update(metrics)
-        metric_rows.append(metric_row)
+            metric_row.update(metrics)
+            metric_rows.append(metric_row)
 
     inference_df = pd.DataFrame(inference_rows)
     metrics_df = pd.DataFrame(metric_rows)
@@ -442,7 +446,7 @@ def train_and_evaluate(experiment_config_path):
     val_cfg = dataset_cfg["splits"][val_split]
     test_cfg = dataset_cfg["splits"][test_split]
 
-    classes = dataset_cfg["classes"]
+    classes = dataset_cfg.get("classes", ["255"])
 
     if not yolo_dataset_yaml.exists():
         raise FileNotFoundError(f"YOLO dataset YAML not found: {yolo_dataset_yaml}")

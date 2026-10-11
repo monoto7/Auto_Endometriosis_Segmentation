@@ -8,13 +8,16 @@ from src.runners.run_yolo_seg import train_and_evaluate
 from src.evaluation.visualize_metrics import visualize_dataset_model_split
 
 
-RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
+RESULTS_ROOT = Path(r"/data/m_meyer/AES/OrganSegmentationResults/")
 
 CONFIGS_TO_RUN = [
     #PROJECT_ROOT / "configs" / "experiments" / "enid_yolo11s_seg_trained.yaml",
     #PROJECT_ROOT / "configs" / "experiments" / "glenda_yolo11s_seg_trained.yaml",
     #PROJECT_ROOT / "configs" / "experiments" / "glenda_clean_yolo11s_seg_trained.yaml",
-    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_yolo11s_seg.yaml",
+    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_yolo11s_seg_trained.yaml",
+    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_85_yolo11s_seg_trained.yaml",
+    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_170_yolo11s_seg_trained.yaml",
+    PROJECT_ROOT / "configs" / "experiments" / "GynSurg_255_yolo11s_seg_trained.yaml",
 ]
 
 # Debug: run only ENID
@@ -37,6 +40,9 @@ DATASETS_TO_VISUALIZE = [
     #"GLENDA",
     #"GLENDA_clean",
     "GynSurg",
+    "GynSurg85",
+    "GynSurg170",
+    "GynSurg255"
 ]
 
 SPLITS_TO_VISUALIZE = [
