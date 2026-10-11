@@ -2,18 +2,17 @@ import pandas as pd
 import glob
 
 
-RootFolder = "C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\OrganSegmentationTesting\\Fluoro\\"
-Dataset = "Fluoro"
+RootFolder = "/data/m_meyer/AES/OrganSegmentationResults/GynSurg85/"
+Dataset = "GynSurg85"
 Splits = [
         "test",
         "val",
-        "train",
+        #"train",
         ]
 Models = [
-    "SAM2",
-    "SAMMed2D",
-    "MedSAM",
-    "SurgiSAM",
+    "SegFormer",
+    "DeepLabV3Plus",
+    "UNetPP"
     ]
 
 OutputSheets = []
@@ -23,7 +22,7 @@ for Model in Models:
     for split in Splits:
         ClassIds = []
         splitSheets = []
-        prefix = RootFolder+Model+"\\visualize_metrics\\"+Dataset+"_"+split+"_"
+        prefix = RootFolder+Model+"/trained/visualize_metrics/"+Dataset+"_"+split+"_"
         xlsxFiles = glob.glob(prefix+"*summary_statistics.xlsx")
         if(len(xlsxFiles)) == 0:
             print("no xlsx files found for " + prefix)
