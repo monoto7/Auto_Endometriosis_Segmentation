@@ -240,12 +240,11 @@ def sanity_check_output():
         images_dir = OUT_ROOT / split_name / "images"
         masks_dir = OUT_ROOT / split_name / "masks"
 
-        image_files = sorted(images_dir.glob("*.jpg"))
+        image_files = sorted(images_dir.glob("*.png"))
         mask_files = sorted(masks_dir.glob("*.png"))
 
         image_stems = {p.stem for p in image_files}
         mask_stems = {p.stem for p in mask_files}
-
         missing_masks = sorted(image_stems - mask_stems)
         missing_images = sorted(mask_stems - image_stems)
 
