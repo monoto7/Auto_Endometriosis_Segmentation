@@ -9,21 +9,21 @@ from PIL import Image
 
 
 # ============================================================
-# GynSurg binary pathology-region preparation script (all classes treated as one lesion class)
+# GynSurg Multi & Binary Class Preparation Script
 # ============================================================
 
 # --- Input folders ---
 FRAMES_DIR = Path(
-    r"C:\Users\cooll\OneDrive\Documents\SPARC\Datasets\GynSurg_Anatomy_Dataset\ganseg"
+    r"/data/m_meyer/AES/Datasets/GynSurg/GynSurg_Anatomy_Dataset/ganseg"
 )
 
 ANNOTS_DIR = Path(
-    r"C:\Users\cooll\OneDrive\Documents\SPARC\Datasets\GynSurg_Anatomy_Dataset\ganseg_mask"
+    r"/data/m_meyer/AES/Datasets/GynSurg/GynSurg_Anatomy_Dataset/ganseg_mask"
 )
 
 # --- Output folder ---
 OUT_ROOT = Path(
-    r"C:\Users\cooll\OneDrive\Documents\SPARC\SplitDatasets\GynSurg_ClassSplit"
+    r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit"
 )
 
 # --- Split settings ---
@@ -42,9 +42,9 @@ def extract_case_id(filename: str) -> str:
     """
     TODO extract relevant information for filename, right now defaulting to stem
     """
-    #match = re.match(r"^(c_\d+)_", filename)
-    #if match:
-    #    return match.group(1)
+    match = re.match(r"GANSEG_\d\d", filename)
+    if match:
+        return match.group(1)
     print(filename)
     return Path(filename).stem.replace('_mask','')
 
@@ -93,7 +93,7 @@ def group_pairs_by_case(pairs):
     grouped = defaultdict(list)
 
     for image_path, mask_path in pairs:
-        case_id = extract_case_id(image_path.name)
+        case_id = extract_case_id(image_path)
         grouped[case_id].append((image_path, mask_path))
 
     print(f"Unique case groups found:      {len(grouped)}")
