@@ -5,7 +5,7 @@ import torch.nn as nn
 import segmentation_models_pytorch as smp
 
 def dice_loss_from_logits_multiclass(logits, targets, eps=1e-7):
-    smp.losses.DiceLoss(mode='multiclass', from_logits=True)(logits,targets)
+    dice = smp.losses.DiceLoss(mode='multiclass', from_logits=True)(logits,targets)
     
     #probs = torch.softmax(logits,dim=1)
 
@@ -20,7 +20,7 @@ def dice_loss_from_logits_multiclass(logits, targets, eps=1e-7):
 
     #dice = (2.0 * intersection + eps) / (cardinality + eps)
 
-    return 1.0 - dice.mean()
+    return dice
 
 def combined_multiclass_loss(logits, targets, dice_weight=0.5, ce_weight=0.5):
     dice = dice_loss_from_logits_multiclass(logits, targets)
