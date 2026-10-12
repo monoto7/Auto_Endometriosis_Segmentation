@@ -14,16 +14,16 @@ from PIL import Image
 
 # --- Input folders ---
 FRAMES_DIR = Path(
-    r"/data/m_meyer/AES/Datasets/GynSurg/GynSurg_Anatomy_Dataset/ganseg"
+    r"C:\Users\Administrator\Documents\SPARC\Datasets\GynSurg\GynSurg_Anatomy_Dataset/ganseg"
 )
 
 ANNOTS_DIR = Path(
-    r"/data/m_meyer/AES/Datasets/GynSurg/GynSurg_Anatomy_Dataset/ganseg_mask"
+    r"C:\Users\Administrator\Documents\SPARC\Datasets\GynSurg\GynSurg_Anatomy_Dataset/ganseg_mask"
 )
 
 # --- Output folder ---
 OUT_ROOT = Path(
-    r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit"
+    r"C:\Users\Administrator\Documents\SPARC\GynSurg_ClassSplit"
 )
 
 # --- Split settings ---
@@ -42,10 +42,10 @@ def extract_case_id(filename: str) -> str:
     """
     TODO extract relevant information for filename, right now defaulting to stem
     """
-    match = re.match(r"GANSEG_\d\d", filename)
+    match = re.match(r".*GANSEG_\d\d", str(filename))
+    
     if match:
-        return match.group(1)
-    print(filename)
+        return match.group(0)
     return Path(filename).stem.replace('_mask','')
 
 
@@ -60,7 +60,7 @@ def collect_image_mask_pairs():
     image_paths = sorted(FRAMES_DIR.glob("**/*.png"))
     pairs = []
     missing_masks = []
-    print(image_paths[0].stem)
+    print(image_paths[0])
     for image_path in image_paths:
         mask_path = Path(str(image_path).replace('ganseg','ganseg_mask').replace(".png","_mask.png"))
 
@@ -68,7 +68,7 @@ def collect_image_mask_pairs():
             pairs.append((image_path, mask_path))
         else:
             missing_masks.append(image_path.name)
-
+    print(pairs[0][0])
     print(f"Total image files found:       {len(image_paths)}")
     print(f"Image-mask pairs found:        {len(pairs)}")
     print(f"Images without matching mask:  {len(missing_masks)}")
@@ -91,7 +91,6 @@ def group_pairs_by_case(pairs):
     Groups image-mask pairs by case ID to reduce leakage between train/val/test.
     """
     grouped = defaultdict(list)
-
     for image_path, mask_path in pairs:
         case_id = extract_case_id(image_path)
         grouped[case_id].append((image_path, mask_path))
@@ -298,7 +297,7 @@ def check_split_leakage(split_dict):
     for split_name, pairs in split_dict.items():
         cases = set()
         for image_path, _ in pairs:
-            cases.add(extract_case_id(image_path.name))
+            cases.add(extract_case_id(str(image_path)))
         split_cases[split_name] = cases
 
     train_val_overlap = split_cases["train"] & split_cases["val"]
