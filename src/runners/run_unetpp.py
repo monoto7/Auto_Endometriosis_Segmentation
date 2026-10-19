@@ -162,7 +162,6 @@ def validate_one_epoch(
         lossFunc = combined_loss
         if(len(classes) != 1):
             lossFunc = combined_multiclass_loss
-
         loss = lossFunc(
             logits=logits,
             targets=masks,
@@ -189,8 +188,8 @@ def validate_one_epoch(
             )
 
             gt_mask = masks_np[i]
-            for i in range(len(classes)):
-                gt_mask[gt_mask==i+1] = int(classes[i])
+            for q in range(len(classes)):
+                gt_mask[gt_mask==q+1] = int(classes[q])
 
             for classVal in classes:
                 metrics = compute_multiclass_metrics(
@@ -316,7 +315,7 @@ def collect_probabilities_for_split(
                 rescaled[y] = cv2.resize(
                     probs[i, y],
                     (original_w, original_h),
-                    interpolation=cv2.INTER_LINEAR,
+                    interpolation=cv2.INTER_NEAREST,
                 )
             
 
@@ -407,9 +406,12 @@ def train_and_evaluate(experiment_config_path):
 
     #Added support for classes and multiclass behaviour
     classes = dataset_cfg.get("classes", ["255"])
+    binary = len(classes) == 1
+    print("Binary?")
+    print(binary)
 
     Dataset = BinarySegmentationDataset
-    if(len(classes) > 1):
+    if(not binary):
         Dataset = GrayscaleSegmentationDataset
 
     train_dataset = Dataset(
@@ -462,7 +464,7 @@ def train_and_evaluate(experiment_config_path):
 
     activation = None
     classcount = 1
-    if(len(classes)>1):
+    if(not binary):
         classcount=len(classes)+1
     model = build_unetpp_model(
         encoder_name=model_cfg.get("encoder_name", "resnet34"),
@@ -532,7 +534,7 @@ def train_and_evaluate(experiment_config_path):
             optimizer=optimizer,
             device=device,
             loss_cfg=model_cfg.get("loss", {}),
-            binary=classcount == 1
+            binary=binary
         )
 
         val_stats = validate_one_epoch(

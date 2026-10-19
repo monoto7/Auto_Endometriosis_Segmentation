@@ -376,7 +376,7 @@ def collect_probabilities_for_split(
                 rescaled[y] = cv2.resize(
                     probs[i, y],
                     (original_w, original_h),
-                    interpolation=cv2.INTER_LINEAR,
+                    interpolation=cv2.INTER_NEAREST,
                 )
 
             image_path = find_original_image_path(images_dir, image_name)
