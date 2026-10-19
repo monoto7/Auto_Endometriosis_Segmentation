@@ -64,11 +64,21 @@ def evaluate_records_and_save(
                 pred_mask=pred_mask,
                 output_path=overlay_path,
             )
+            if(len(classes) != 1):
+                for classId in classes:
+                    overlay_path = overlay_dir / f"{Path(image_name).stem}_{classId}_overlay.png"
+                    
+                    save_overlay(
+                        image_path=image_path,
+                        gt_mask=gt_mask==int(classId),
+                        pred_mask=pred_mask==int(classId),
+                        output_path=overlay_path,
+                    )
 
         for class_name in classes:
             #Use multiclass metrics and just assume 255, assuming pre-processing will make everything a binary mask in the non-multiclass case
             metrics = compute_multiclass_metrics(
-                pred_mask=pred_mask,
+                pred_mask=pred_mask==int(class_name),
                 gt_mask=gt_mask,
                 class_g_value=int(class_name)
             )
