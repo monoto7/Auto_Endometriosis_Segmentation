@@ -76,8 +76,8 @@ def ensure_same_size(mask: np.ndarray, reference_mask: np.ndarray) -> np.ndarray
 
 def probability_to_mask(probability_map, threshold, postprocessing_cfg, classes):
     mask = np.zeros(probability_map[0].shape)
-    offset = probability_map.shape[0]-len(classes)
     
+    offset = probability_map.shape[0]-len(classes)
     for i in range(probability_map.shape[0]-offset):
         mask[probability_map[i+offset] >= threshold] = int(classes[i])
 
@@ -149,7 +149,7 @@ def collect_probabilities_for_split(
                 rescaled[y] = cv2.resize(
                     probs[i, y],
                     (original_w, original_h),
-                    interpolation=cv2.INTER_LINEAR,
+                    interpolation=cv2.INTER_NEAREST,
                 )
             
 
