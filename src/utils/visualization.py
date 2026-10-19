@@ -21,14 +21,14 @@ def save_overlay(
     gt = gt_mask > 0
     pred = pred_mask > 0
 
-    # GT = green
-    overlay[gt] = [0, 255, 0]
+    # GT = blue
+    overlay[gt] = [0, 0, 255]
 
-    # Prediction = red
-    overlay[pred] = [255, 0, 0]
+    # Prediction = vermillion
+    overlay[pred] = [227, 66, 52]
 
-    # Overlap = yellow
-    overlay[gt & pred] = [255, 255, 0]
+    # Overlap = Blue tinted green
+    overlay[gt & pred] = [0, 158, 115]
 
     blended = cv2.addWeighted(image_np, 1 - alpha, overlay, alpha, 0)
     blended_bgr = cv2.cvtColor(blended, cv2.COLOR_RGB2BGR)
