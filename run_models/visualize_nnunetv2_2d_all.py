@@ -7,14 +7,20 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.evaluation.visualize_metrics import visualize_dataset_model_split
 
+from src.utils.nnunet_env import (
+    NNUNET_EPOCH_STRING
+)
 
-RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
+RESULTS_ROOT = Path(r"/data/m_meyer/AES/OrganSegmentationResults/")
 
 DATASETS_TO_VISUALIZE = [
     #"ENID",
     #"GLENDA",
     #"GLENDA_clean",
-    "GynSurg"
+    #"GynSurg",
+    #"GynSurg85",
+    #"GynSurg170",
+    "GynSurg255",
 ]
 
 SPLITS_TO_VISUALIZE = [
@@ -30,7 +36,7 @@ def main():
                 visualize_dataset_model_split(
                     results_root=RESULTS_ROOT,
                     dataset_name=dataset_name,
-                    model_name="nnUNetV2_2D_100ep",
+                    model_name=f"nnUNetV2_2D{NNUNET_EPOCH_STRING}",
                     training_state="trained",
                     split=split,
                 )

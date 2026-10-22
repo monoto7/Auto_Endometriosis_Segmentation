@@ -2,15 +2,18 @@ import os
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\Jasmin Repos\AES\Auto_Endometriosis_Segmentation")
+PROJECT_ROOT = Path(r"/data/m_meyer/AES/Auto_Endometriosis_Segmentation")
 
-NNUNET_BASE = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\Preprocessing\nnUnet")
+NNUNET_BASE = Path(r"/data/m_meyer/AES/Preprocessing/nnUnet")
 
 NNUNET_RAW = NNUNET_BASE / "nnUNet_raw"
 NNUNET_PREPROCESSED = NNUNET_BASE / "nnUNet_preprocessed"
 NNUNET_RESULTS = NNUNET_BASE / "nnUNet_results"
 NNUNET_EXPORTS = NNUNET_BASE / "evaluation_exports"
 
+#select epoch count here, use empty string for 1000
+#NNUNET_EPOCH_STRING = ""
+NNUNET_EPOCH_STRING = "_100epochs"
 NNUNET_CUSTOM_TRAINERS = PROJECT_ROOT / "src" / "nnunet_custom_trainers"
 
 

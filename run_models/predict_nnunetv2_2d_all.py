@@ -11,6 +11,7 @@ from src.utils.nnunet_env import (
     get_nnunet_environment,
     NNUNET_RAW,
     NNUNET_EXPORTS,
+    NNUNET_EPOCH_STRING
 )
 
 
@@ -27,15 +28,27 @@ DATASETS = [
     #     "dataset_id": 503,
     #     "dataset_folder": "Dataset503_GLENDA_clean",
     # },
+    #  {
+    #     "dataset_id": 504,
+    #     "dataset_folder": "Dataset504_GynSurg",
+    #  },
+    #  {
+    #     "dataset_id": 505,
+    #     "dataset_folder": "Dataset505_GynSurg85",
+    #  },
+    #  {
+    #     "dataset_id": 506,
+    #     "dataset_folder": "Dataset506_GynSurg170",
+    #  },
      {
-             "dataset_id": 504,
-            "dataset_folder": "Dataset504_GynSurg",
+        "dataset_id": 507,
+        "dataset_folder": "Dataset507_GynSurg255",
      },
 ]
 
 CONFIGURATION = "2d"
 FOLD = "0"
-TRAINER = "nnUNetTrainer_100epochs"
+TRAINER = f"nnUNetTrainer{NNUNET_EPOCH_STRING}"
 CHECKPOINT = "checkpoint_best.pth"
 
 
@@ -100,13 +113,13 @@ def predict_dataset(dataset_id: int, dataset_folder: str, env):
     output_all_images_tr = (
         NNUNET_EXPORTS
         / dataset_folder
-        / "all_imagesTr_predictions_100ep"
+        / f"all_imagesTr_predictions{NNUNET_EPOCH_STRING}"
     )
 
     output_test = (
         NNUNET_EXPORTS
         / dataset_folder
-        / "test_predictions_100ep"
+        / f"test_predictions{NNUNET_EPOCH_STRING}"
     )
 
     output_all_images_tr.mkdir(parents=True, exist_ok=True)
@@ -176,7 +189,7 @@ def main():
             env=env,
         )
 
-    print("\nAll selected nnU-Net v2 100-epoch predictions finished.")
+    print(f"\nAll selected nnU-Net v2 {NNUNET_EPOCH_STRING} predictions finished.")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,6 @@
+import os
+os.environ["TORCHINDUCTOR_COMPILE_THREADS"] = "1"
+
 from pathlib import Path
 import json
 import shutil
@@ -24,7 +27,11 @@ from src.utils.nnunet_env import (
     get_nnunet_environment,
     NNUNET_PREPROCESSED,
     NNUNET_RAW,
+    NNUNET_EPOCH_STRING
 )
+
+
+
 
 
 DATASETS = [
@@ -43,17 +50,32 @@ DATASETS = [
     #     "dataset_name": "GLENDA_clean",
     #     "dataset_folder": "Dataset503_GLENDA_clean",
     # },
+    # {
+    #     "dataset_id": 504,
+    #     "dataset_name": "GynSurg",
+    #     "dataset_folder": "Dataset504_GynSurg",
+    # },
+    # {
+    #     "dataset_id": 505,
+    #     "dataset_name": "GynSurg85",
+    #     "dataset_folder": "Dataset505_GynSurg85",
+    # },
+    # {
+    #     "dataset_id": 506,
+    #     "dataset_name": "GynSurg170",
+    #     "dataset_folder": "Dataset506_GynSurg170",
+    # },
     {
-        "dataset_id": 504,
-        "dataset_name": "GynSurg",
-        "dataset_folder": "Dataset504_GynSurg",
+        "dataset_id": 507,
+        "dataset_name": "GynSurg255",
+        "dataset_folder": "Dataset507_GynSurg255",
     },
 ]
 
 CONFIGURATION = "2d"
 FOLD = "0"
-TRAINER = "nnUNetTrainer_100epochs"
-
+TRAINER = f"nnUNetTrainer{NNUNET_EPOCH_STRING}"
+#TRAINER = Epoch100.nnUNetTrainer_100epochs
 
 # Debug: run only GLENDA_clean
 # DATASETS = [
@@ -258,7 +280,7 @@ def main():
             env=env,
         )
 
-    print("\nAll selected nnU-Net v2 2D 100-epoch trainings finished.")
+    print(f"\nAll selected nnU-Net v2 2D {NNUNET_EPOCH_STRING} trainings finished.")
 
 
 if __name__ == "__main__":
