@@ -33,11 +33,9 @@ from src.utils.mask_utils import collect_probabilities_for_split
 from src.utils.loss_funcs import DiceCELossModule
 from src.utils.loss_funcs import dice_loss_from_logits_multiclass
 
-def load_yaml(path):
-    path = Path(path)
+#Standardize yaml loading
+from src.utils.misc_utils import load_yaml
 
-    with open(path, "r", encoding="utf-8") as file:
-        return yaml.safe_load(file)
 
 
 def save_dataframe_csv_xlsx(df: pd.DataFrame, csv_path: Path, xlsx_path: Path, sheet_name: str):

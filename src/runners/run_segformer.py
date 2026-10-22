@@ -35,12 +35,7 @@ from src.utils.visualization import save_overlay
 from src.utils.mask_utils import probability_to_mask
 from src.utils.mask_utils import load_mask
 
-
-def load_yaml(path):
-    path = Path(path)
-
-    with open(path, "r", encoding="utf-8") as file:
-        return yaml.safe_load(file)
+from src.utils.misc_utils import load_yaml
 
 
 def forward_segformer_logits(model, images, target_size):

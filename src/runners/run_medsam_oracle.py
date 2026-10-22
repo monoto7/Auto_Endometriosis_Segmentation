@@ -13,12 +13,7 @@ from src.evaluation.metrics import compute_binary_metrics
 from src.evaluation.metrics import compute_multiclass_metrics
 from src.utils.visualization import save_overlay
 
-
-def load_yaml(path):
-    path = Path(path)
-
-    with open(path, "r", encoding="utf-8") as file:
-        return yaml.safe_load(file)
+from src.utils.misc_utils import load_yaml
 
 
 def load_rgb_image(image_path: Path) -> np.ndarray:

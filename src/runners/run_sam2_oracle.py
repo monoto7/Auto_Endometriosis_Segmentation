@@ -21,12 +21,7 @@ from src.utils.visualization import save_overlay
 from src.evaluation.metrics import compute_binary_metrics
 from src.evaluation.metrics import compute_multiclass_metrics
 
-def load_yaml(path: Path) -> dict:
-    import yaml
-
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
+from src.utils.misc_utils import load_yaml
 
 def parse_json_field(value, default):
     if value is None:

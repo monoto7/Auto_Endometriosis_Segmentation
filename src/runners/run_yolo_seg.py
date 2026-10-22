@@ -19,12 +19,7 @@ from src.utils.mask_utils import save_mask
 
 IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"]
 
-
-def load_yaml(path):
-    path = Path(path)
-
-    with open(path, "r", encoding="utf-8") as file:
-        return yaml.safe_load(file)
+from src.utils.misc_utils import load_yaml
 
 
 def find_original_image_path(images_dir: Path, image_name: str) -> Path:
