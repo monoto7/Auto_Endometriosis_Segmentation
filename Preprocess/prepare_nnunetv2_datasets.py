@@ -44,19 +44,58 @@ DATASETS = [
     #     ),
     #     "nnunet_name": "GLENDA_clean",
     # },
+    # {
+    #     "dataset_id": 504,
+    #     "dataset_name": "GynSurg",
+    #     "standardized_root": Path(
+    #         r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit"
+    #     ),
+    #     "nnunet_name": "GynSurg",
+    #     #Added to have handling for multiclass cases
+    #     "labels": {
+    #         "background": 0,
+    #         "uterus": 1,
+    #         "fallopian tubes": 2,
+    #         "ovaries": 3,
+    #     },
+    # },
     {
-        "dataset_id": 504,
-        "dataset_name": "GynSurg",
+        "dataset_id": 505,
+        "dataset_name": "GynSurg85",
         "standardized_root": Path(
-            r"C:\\Users\\cooll\\OneDrive\\Documents\\SPARC\\SplitDatasets\\GynSurg"
+            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/85"
         ),
-        "nnunet_name": "GynSurg",
+        "nnunet_name": "GynSurg85",
         #Added to have handling for multiclass cases
         "labels": {
             "background": 0,
             "uterus": 1,
-            "fallopian tubes": 2,
-            "ovaries": 3,
+        },
+    },
+    {
+        "dataset_id": 506,
+        "dataset_name": "GynSurg170",
+        "standardized_root": Path(
+            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/170"
+        ),
+        "nnunet_name": "GynSurg170",
+        #Added to have handling for multiclass cases
+        "labels": {
+            "background": 0,
+            "fallopian tubes": 1,
+        },
+    },
+    {
+        "dataset_id": 507,
+        "dataset_name": "GynSurg255",
+        "standardized_root": Path(
+            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/255"
+        ),
+        "nnunet_name": "GynSurg255",
+        #Added to have handling for multiclass cases
+        "labels": {
+            "background": 0,
+            "ovaries": 1,
         },
     },
 ]
@@ -348,7 +387,12 @@ def convert_dataset(dataset_cfg):
     dataset_name = dataset_cfg["dataset_name"]
     nnunet_name = dataset_cfg["nnunet_name"]
     standardized_root = dataset_cfg["standardized_root"]
-    labels = dataset_cfg.get("labels")
+    labels = dataset_cfg.get("labels", {
+            "background": 0,
+            "lesion": 1
+    })
+
+    multiclass = len(labels)>2
 
     dataset_folder_name = f"Dataset{dataset_id:03d}_{nnunet_name}"
     dataset_folder = NNUNET_RAW / dataset_folder_name
@@ -357,6 +401,7 @@ def convert_dataset(dataset_cfg):
     print(f"Preparing nnU-Net v2 dataset: {dataset_folder_name}")
     print(f"Source: {standardized_root}")
     print(f"Target: {dataset_folder}")
+    print(f"Multiclass: {multiclass}")
     print("=" * 100)
 
     clean_dataset_folder(dataset_folder)
@@ -368,7 +413,7 @@ def convert_dataset(dataset_cfg):
         standardized_root=standardized_root,
         dataset_folder=dataset_folder,
         split="train",
-        multiclass=(labels is None)
+        multiclass=multiclass
     )
 
     val_rows, val_ids = convert_split_to_nnunet(
@@ -376,7 +421,7 @@ def convert_dataset(dataset_cfg):
         standardized_root=standardized_root,
         dataset_folder=dataset_folder,
         split="val",
-        multiclass=(labels is None)
+        multiclass=multiclass
     )
 
     test_rows, test_ids = convert_split_to_nnunet(
@@ -384,7 +429,7 @@ def convert_dataset(dataset_cfg):
         standardized_root=standardized_root,
         dataset_folder=dataset_folder,
         split="test",
-        multiclass=(labels is None)
+        multiclass=multiclass
     )
 
     all_rows.extend(train_rows)
@@ -393,16 +438,16 @@ def convert_dataset(dataset_cfg):
 
     num_training = len(train_ids) + len(val_ids)
 
-    if(labels is None):
-        write_dataset_json(
-            dataset_folder=dataset_folder,
-            num_training=num_training,
-        )
-    else:
+    if(multiclass):
         write_dataset_json_multiclass(
             dataset_folder=dataset_folder,
             num_training=num_training,
             labels=labels
+        )
+    else:
+        write_dataset_json(
+            dataset_folder=dataset_folder,
+            num_training=num_training,
         )
 
     write_custom_split_file(
