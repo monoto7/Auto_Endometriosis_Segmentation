@@ -108,6 +108,16 @@ def remove_small_components(original_mask: np.ndarray, min_area_px: int, class_i
 
     return cleaned.astype(np.uint8) * int(class_id)
 
+def rescale_mask(
+        mask, 
+        classes = ["255"],
+        ):
+    outMask = np.zeros(mask.shape)
+    for iter,class_value in enumerate(classes):
+        outMask[mask==iter+1]=int(class_value)
+    return outMask
+    
+
 
 @torch.no_grad()
 def collect_probabilities_for_split(

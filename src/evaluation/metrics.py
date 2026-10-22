@@ -41,7 +41,7 @@ def compute_binary_metrics(pred_mask: np.ndarray, gt_mask: np.ndarray) -> dict:
     }
 
 def compute_multiclass_metrics(pred_mask: np.ndarray, gt_mask: np.ndarray, class_g_value: int) -> dict:
-    pred = pred_mask > 0
+    pred = pred_mask == class_g_value
     #slight change means that we can just use the class_id(set as the grayscale intensity value)
     gt = gt_mask == class_g_value
     tp = np.logical_and(pred, gt).sum()

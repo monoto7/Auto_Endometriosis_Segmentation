@@ -6,21 +6,21 @@ import segmentation_models_pytorch as smp
 
 def dice_loss_from_logits_multiclass(logits, targets, eps=1e-7):
     dice = smp.losses.DiceLoss(mode='multiclass', from_logits=True)(logits,targets)
-    
-    #probs = torch.softmax(logits,dim=1)
+    return dice
+    probs = torch.softmax(logits,dim=1)
 
     #Need to handle each class seperately, so only final 2 are summed over
-    #dims = (2, 3)
+    dims = (2, 3)
     #Switch targets to be one_hot_encoded in each class
-    #one_hot_targets = torch.nn.functional.one_hot(targets, num_classes=logits.shape[1]).permute(0, 3, 1, 2).float()
-    #one_hot_targets = one_hot_targets[:,1:]
-    #probs = probs[:,1:]
-    #intersection = torch.sum(probs * one_hot_targets, dims)
-    #cardinality = torch.sum(probs + one_hot_targets, dims)
+    one_hot_targets = torch.nn.functional.one_hot(targets, num_classes=logits.shape[1]).permute(0, 3, 1, 2).float()
+    one_hot_targets = one_hot_targets[:,1:]
+    probs = probs[:,1:]
+    intersection = torch.sum(probs * one_hot_targets, dims)
+    cardinality = torch.sum(probs + one_hot_targets, dims)
 
-    #dice = (2.0 * intersection + eps) / (cardinality + eps)
+    dice = (2.0 * intersection + eps) / (cardinality + eps)
 
-    return dice
+    return 1.0 - dice.mean()
 
 def combined_multiclass_loss(logits, targets, dice_weight=0.5, ce_weight=0.5):
     dice = dice_loss_from_logits_multiclass(logits, targets)
