@@ -5,22 +5,31 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from tqdm import tqdm
+import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.evaluation.metrics import compute_binary_metrics
+from src.evaluation.metrics import compute_multiclass_metrics
 from src.utils.visualization import save_overlay
 from src.utils.nnunet_env import (
     setup_nnunet_environment,
     NNUNET_RAW,
     NNUNET_EXPORTS,
     NNUNET_RESULTS,
+    NNUNET_EPOCH_STRING,
 )
 
+from src.utils.mask_utils import load_mask
+from src.utils.mask_utils import save_mask
+from src.utils.mask_utils import rescale_mask
+from src.utils.misc_utils import load_yaml
 
-RESULTS_ROOT = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\\OrganSegmentationTesting\\")
+
+
+
+RESULTS_ROOT = Path(r"/data/m_meyer/AES/OrganSegmentationResults/")
 
 DATASETS = [
     # {
@@ -38,30 +47,33 @@ DATASETS = [
     #     "dataset_folder": "Dataset503_GLENDA_clean",
     #     "output_name": "GLENDA_clean",
     # },
+    # {
+    #         "dataset_name": "GynSurg",
+    #         "dataset_folder": "Dataset504_GynSurg",
+    #         "output_name": "GynSurg",
+    #         "dataset_conf": "gynsurg.yaml"
+    # },
+    # {
+    #         "dataset_name": "GynSurg85",
+    #         "dataset_folder": "Dataset505_GynSurg85",
+    #         "output_name": "GynSurg85",
+    # },
+    # {
+    #         "dataset_name": "GynSurg170",
+    #         "dataset_folder": "Dataset506_GynSurg170",
+    #         "output_name": "GynSurg170",
+    # },
     {
-            "dataset_name": "GynSurg",
-            "dataset_folder": "Dataset504_GynSurg",
-            "output_name": "GynSurg",
+            "dataset_name": "GynSurg255",
+            "dataset_folder": "Dataset507_GynSurg255",
+            "output_name": "GynSurg255",
     },
 ]
 
 #MODEL_NAME = "nnUNetV2_2D"
-MODEL_NAME = "nnUNetV2_2D_100ep"
+MODEL_NAME = f"nnUNetV2_2D{NNUNET_EPOCH_STRING}"
 TRAINING_STATE = "trained"
 PROMPT_MODE = "No_prompt"
-
-
-def read_mask(path: Path) -> np.ndarray:
-    mask = Image.open(path).convert("L")
-    mask_np = np.array(mask)
-
-    return (mask_np > 0).astype(np.uint8) * 255
-
-
-def save_binary_mask(mask_np: np.ndarray, output_path: Path):
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(mask_np.astype(np.uint8)).save(output_path)
-
 
 def save_dataframe_csv_xlsx(
     df: pd.DataFrame,
@@ -134,6 +146,7 @@ def evaluate_split(
     prediction_folder: Path,
     output_root: Path,
     split_name: str,
+    classes: list = ["255"],
 ):
     split_df = conversion_df[conversion_df["split"] == split_name].copy()
 
@@ -162,8 +175,8 @@ def evaluate_split(
             case_id=case_id,
         )
 
-        gt_mask = read_mask(gt_label_path)
-        pred_mask = read_mask(prediction_path)
+        gt_mask = load_mask(gt_label_path)
+        pred_mask = load_mask(prediction_path)
 
         if pred_mask.shape != gt_mask.shape:
             pred_image = Image.fromarray(pred_mask.astype(np.uint8))
@@ -176,7 +189,10 @@ def evaluate_split(
         merged_mask_name = f"{case_id}.png"
         merged_mask_path = merged_dir / merged_mask_name
 
-        save_binary_mask(pred_mask, merged_mask_path)
+        pred_mask = rescale_mask(pred_mask,classes=classes)
+        gt_mask = rescale_mask(gt_mask, classes=classes)
+
+        save_mask(pred_mask, merged_mask_path)
 
         overlay_path = overlay_dir / f"{case_id}_overlay.png"
 
@@ -186,14 +202,41 @@ def evaluate_split(
             pred_mask=pred_mask,
             output_path=overlay_path,
         )
+        if len(classes)>1 :
+            for class_value in classes:
+                overlay_path = overlay_dir / f"{case_id}_{class_value}_overlay.png"
+                save_overlay(
+                    image_path=source_image,
+                    gt_mask=gt_mask==int(class_value),
+                    pred_mask=pred_mask==int(class_value),
+                    output_path=overlay_path,
+                )
 
-        metrics = compute_binary_metrics(
-            pred_mask=pred_mask,
-            gt_mask=gt_mask,
-        )
+        for class_value in classes:
+            metrics = compute_multiclass_metrics(
+                pred_mask=pred_mask,
+                gt_mask=gt_mask,
+                class_g_value=int(class_value)
+            )
 
-        inference_rows.append(
-            {
+            inference_rows.append(
+                {
+                    "dataset": dataset_name,
+                    "split": split_name,
+                    "model_name": MODEL_NAME,
+                    "training_state": TRAINING_STATE,
+                    "prompt_mode": PROMPT_MODE,
+                    "image_name": source_image.name,
+                    "mask_name": source_mask.name,
+                    "case_id": case_id,
+                    "class_id": class_value,
+                    "prediction_name": prediction_path.name,
+                    "merged_mask_name": merged_mask_name,
+                    "inference_time_ms": None,
+                }
+            )
+
+            metric_row = {
                 "dataset": dataset_name,
                 "split": split_name,
                 "model_name": MODEL_NAME,
@@ -202,26 +245,12 @@ def evaluate_split(
                 "image_name": source_image.name,
                 "mask_name": source_mask.name,
                 "case_id": case_id,
-                "prediction_name": prediction_path.name,
-                "merged_mask_name": merged_mask_name,
-                "inference_time_ms": None,
+                "class_id": class_value,
+                "num_prompt_instances": 0,
             }
-        )
 
-        metric_row = {
-            "dataset": dataset_name,
-            "split": split_name,
-            "model_name": MODEL_NAME,
-            "training_state": TRAINING_STATE,
-            "prompt_mode": PROMPT_MODE,
-            "image_name": source_image.name,
-            "mask_name": source_mask.name,
-            "case_id": case_id,
-            "num_prompt_instances": 0,
-        }
-
-        metric_row.update(metrics)
-        metric_rows.append(metric_row)
+            metric_row.update(metrics)
+            metric_rows.append(metric_row)
 
     inference_df = pd.DataFrame(inference_rows)
     metrics_df = pd.DataFrame(metric_rows)
@@ -298,6 +327,14 @@ def evaluate_dataset(dataset_cfg):
     dataset_folder = dataset_cfg["dataset_folder"]
     output_name = dataset_cfg["output_name"]
 
+    #Load dataset conf for proper multiclass output
+    dataset_conf_loc = dataset_cfg.get("dataset_conf", None)
+
+    dataset_conf = None
+    classes = ["255"]
+    if(dataset_conf_loc is not None):
+        dataset_conf = load_yaml(PROJECT_ROOT / "configs" / "datasets" / dataset_conf_loc)
+        classes = dataset_conf.get("classes", ["255"])
     raw_dataset_folder = NNUNET_RAW / dataset_folder
 
     conversion_df = load_conversion_report(
@@ -311,13 +348,13 @@ def evaluate_dataset(dataset_cfg):
     all_images_tr_predictions = (
         NNUNET_EXPORTS
         / dataset_folder
-        / "all_imagesTr_predictions_100ep"
+        / f"all_imagesTr_predictions{NNUNET_EPOCH_STRING}"
     )
 
     test_predictions = (
         NNUNET_EXPORTS
         / dataset_folder
-        / "test_predictions_100ep"
+        / f"test_predictions{NNUNET_EPOCH_STRING}"
     )
 
     if not all_images_tr_predictions.exists():
@@ -332,6 +369,7 @@ def evaluate_dataset(dataset_cfg):
         prediction_folder=all_images_tr_predictions,
         output_root=output_root,
         split_name="val",
+        classes=classes,
     )
 
     evaluate_split(
@@ -340,6 +378,7 @@ def evaluate_dataset(dataset_cfg):
         prediction_folder=test_predictions,
         output_root=output_root,
         split_name="test",
+        classes=classes,
     )
 
     copy_checkpoint_summary(
