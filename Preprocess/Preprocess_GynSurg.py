@@ -14,16 +14,16 @@ from PIL import Image
 
 # --- Input folders ---
 FRAMES_DIR = Path(
-    r"C:\Users\Administrator\Documents\SPARC\Datasets\GynSurg\GynSurg_Anatomy_Dataset/ganseg"
+    r"/data/m_meyer/AES/Datasets/GynSurg/GynSurg_Anatomy_Dataset/ganseg"
 )
 
 ANNOTS_DIR = Path(
-    r"C:\Users\Administrator\Documents\SPARC\Datasets\GynSurg\GynSurg_Anatomy_Dataset/ganseg_mask"
+    r"/data/m_meyer/AES/Datasets/GynSurg/GynSurg_Anatomy_Dataset/ganseg_mask"
 )
 
 # --- Output folder ---
 OUT_ROOT = Path(
-    r"C:\Users\Administrator\Documents\SPARC\GynSurg_ClassSplit"
+    r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit"
 )
 
 # --- Split settings ---
@@ -31,7 +31,7 @@ TRAIN_RATIO = 0.60
 VAL_RATIO = 0.20
 TEST_RATIO = 0.20
 
-RANDOM_SEED = 42
+RANDOM_SEED = 10
 
 # If True, deletes existing output folder before recreating it.
 # Keep False unless you intentionally want to overwrite everything.
@@ -40,9 +40,9 @@ OVERWRITE_EXISTING = True
 
 def extract_case_id(filename: str) -> str:
     """
-    TODO extract relevant information for filename, right now defaulting to stem
+    extract relevant information for filename, defaulting to stem if not found
     """
-    match = re.match(r".*GANSEG_\d\d", str(filename))
+    match = re.search(r"GANSEG_\d\d", str(filename))
     
     if match:
         return match.group(0)
@@ -60,7 +60,6 @@ def collect_image_mask_pairs():
     image_paths = sorted(FRAMES_DIR.glob("**/*.png"))
     pairs = []
     missing_masks = []
-    print(image_paths[0])
     for image_path in image_paths:
         mask_path = Path(str(image_path).replace('ganseg','ganseg_mask').replace(".png","_mask.png"))
 
@@ -199,15 +198,16 @@ def process_split(split_name: str, pairs, class_name = None):
 
     for image_path, mask_path in pairs:
         try:
-            image_dst = images_out / image_path.name
-            mask_dst = masks_out / f"{image_path.stem}.png"
+            case_id = extract_case_id(image_path)
+            image_dst = images_out / f"{case_id}_{image_path.name}"
+            mask_dst = masks_out / f"{case_id}_{image_path.stem}.png"
 
             # Copy original RGB laparoscopic image unchanged.
             shutil.copy2(image_path, image_dst)
 
-            # Convert multi-class or box-like colored annotation to binary mask.
-            binary_mask = convert_gynsurg_mask(mask_path, class_name=class_name)
-            binary_mask.save(mask_dst)
+            # Convert multi-class or box-like colored annotation to binary mask if class is given
+            mask = convert_gynsurg_mask(mask_path, class_name=class_name)
+            mask.save(mask_dst)
 
             processed += 1
 
@@ -329,9 +329,12 @@ def main():
     prepare_output_dirs()
 
     pairs = collect_image_mask_pairs()
+    print(len(pairs))
     grouped_pairs = group_pairs_by_case(pairs)
     split_dict = split_cases(grouped_pairs)
-
+    print(len(split_dict["train"]))
+    print(len(split_dict["val"]))
+    print(len(split_dict["test"]))
     check_split_leakage(split_dict)
 
     process_split("train", split_dict["train"])
