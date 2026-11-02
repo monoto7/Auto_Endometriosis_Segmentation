@@ -44,61 +44,60 @@ DATASETS = [
     #     ),
     #     "nnunet_name": "GLENDA_clean",
     # },
-    # {
-    #     "dataset_id": 504,
-    #     "dataset_name": "GynSurg",
-    #     "standardized_root": Path(
-    #         r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit"
-    #     ),
-    #     "nnunet_name": "GynSurg",
-    #     #Added to have handling for multiclass cases
-    #     "labels": {
-    #         "background": 0,
-    #         "uterus": 1,
-    #         "fallopian tubes": 2,
-    #         "ovaries": 3,
-    #     },
-    # },
     {
-        "dataset_id": 505,
-        "dataset_name": "GynSurg85",
+        "dataset_id": 504,
+        "dataset_name": "GynSurg",
         "standardized_root": Path(
-            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/85"
+            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit"
         ),
-        "nnunet_name": "GynSurg85",
+        "nnunet_name": "GynSurg",
         #Added to have handling for multiclass cases
         "labels": {
             "background": 0,
             "uterus": 1,
+            "fallopian tubes": 2,
+            "ovaries": 3,
         },
     },
-    {
-        "dataset_id": 506,
-        "dataset_name": "GynSurg170",
-        "standardized_root": Path(
-            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/170"
-        ),
-        "nnunet_name": "GynSurg170",
-        #Added to have handling for multiclass cases
-        "labels": {
-            "background": 0,
-            "fallopian tubes": 1,
-        },
-    },
-    {
-        "dataset_id": 507,
-        "dataset_name": "GynSurg255",
-        "standardized_root": Path(
-            r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/255"
-        ),
-        "nnunet_name": "GynSurg255",
-        #Added to have handling for multiclass cases
-        "labels": {
-            "background": 0,
-            "ovaries": 1,
-        },
-    },
+    # {
+    #     "dataset_id": 505,
+    #     "dataset_name": "GynSurg85",
+    #     "standardized_root": Path(
+    #         r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/85"
+    #     ),
+    #     "nnunet_name": "GynSurg85",
+    #     "labels": {
+    #         "background": 0,
+    #         "uterus": 1,
+    #     },
+    # },
+    # {
+    #     "dataset_id": 506,
+    #     "dataset_name": "GynSurg170",
+    #     "standardized_root": Path(
+    #         r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/170"
+    #     ),
+    #     "nnunet_name": "GynSurg170",
+    #     "labels": {
+    #         "background": 0,
+    #         "fallopian tubes": 1,
+    #     },
+    # },
+    # {
+    #     "dataset_id": 507,
+    #     "dataset_name": "GynSurg255",
+    #     "standardized_root": Path(
+    #         r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit/255"
+    #     ),
+    #     "nnunet_name": "GynSurg255",
+    #     "labels": {
+    #         "background": 0,
+    #         "ovaries": 1,
+    #     },
+    # },
 ]
+
+valueRange = {0:0,85:1,170:2,255:3}
 
 IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"]
 
@@ -149,8 +148,9 @@ def read_label_mask_multiclass(mask_path: Path) -> np.ndarray:
     mask_np = np.array(mask)
 
     label_np = np.zeros(mask_np.shape)
-    for i,val in enumerate(np.unique(mask_np)):
-        label_np[mask_np==val] = i
+    for value in valueRange:
+        label_np[mask_np==value] = valueRange[value]
+    
 
     #Below commented out under the assumption it's not necessary for functionality
     #unique_values = set(np.unique(label_np).tolist())
