@@ -3,10 +3,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from PIL import Image
+import sys
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 
-NNUNET_RAW = Path(r"C:\Users\cooll\OneDrive\Documents\SPARC\Preprocessing\nnUnet\nnUNet_raw")
-
+from src.utils.nnunet_env import (
+    NNUNET_RAW
+)
 DATASETS = [
     #"Dataset501_ENID",
     #"Dataset502_GLENDA",
@@ -20,6 +24,8 @@ LABEL_FOLDERS = [
 ]
 
 MAKE_PREVIEWS = True
+
+MultiValue = 85
 
 
 def read_mask(mask_path: Path) -> np.ndarray:
@@ -37,7 +43,7 @@ def save_preview_mask(mask_array: np.ndarray, output_path: Path):
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    preview = (mask_array > 0).astype(np.uint8) * 255
+    preview = (mask_array).astype(np.uint8) * MultiValue
     Image.fromarray(preview).save(output_path)
 
 
