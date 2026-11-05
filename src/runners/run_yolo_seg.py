@@ -325,7 +325,7 @@ def evaluate_yolo_split(
             )
         for class_name in classes:
             metrics = compute_multiclass_metrics(
-                        pred_mask=pred_mask==int(class_name),
+                        pred_mask=pred_mask,
                         gt_mask=gt_mask,
                         class_g_value=int(class_name)
             )
