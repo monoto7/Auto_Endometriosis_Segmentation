@@ -306,6 +306,7 @@ def summarize_numeric_columns(
 
     excluded_numeric = {
         "lesion_id",
+        "class_id",
     }
 
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
