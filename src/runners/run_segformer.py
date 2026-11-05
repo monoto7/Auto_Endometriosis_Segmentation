@@ -225,8 +225,11 @@ def validate_one_epoch(
         )
 
         losses.append(float(loss.detach().cpu().item()))
-
-        probs = torch.sigmoid(logits).detach().cpu().numpy()
+        probs=None
+        if(len(classes) != 1):
+            probs = torch.softmax(logits,dim=1).detach().cpu().numpy()
+        else:
+            probs = torch.sigmoid(logits).detach().cpu().numpy()
         masks_np = masks.detach().cpu().numpy()
         
         #TODO test below to make sure this actually functions
@@ -244,7 +247,7 @@ def validate_one_epoch(
                 gt_mask[gt_mask==i+1] = classes[i]
             for classVal in classes:
                 metrics = compute_multiclass_metrics(
-                    pred_mask=pred_mask==int(classVal),
+                    pred_mask=pred_mask,
                     gt_mask=gt_mask,
                     class_g_value=int(classVal)
                 )

@@ -189,7 +189,7 @@ def validate_one_epoch(
 
             for classVal in classes:
                 metrics = compute_multiclass_metrics(
-                    pred_mask=pred_mask==int(classVal),
+                    pred_mask=pred_mask,
                     gt_mask=gt_mask,
                     class_g_value=int(classVal)
                 )

@@ -78,7 +78,7 @@ def evaluate_records_and_save(
         for class_name in classes:
             #Use multiclass metrics and just assume 255, assuming pre-processing will make everything a binary mask in the non-multiclass case
             metrics = compute_multiclass_metrics(
-                pred_mask=pred_mask==int(class_name),
+                pred_mask=pred_mask,
                 gt_mask=gt_mask,
                 class_g_value=int(class_name)
             )
@@ -161,7 +161,7 @@ def run_threshold_sweep(records, thresholds, postprocessing_cfg, classes = ["255
 
             for i in classes:
                 metrics = compute_multiclass_metrics(
-                    pred_mask= (pred_mask[int(i)]==int(i)).astype(int),
+                    pred_mask= pred_mask,
                     gt_mask=record["gt_mask"],
                     class_g_value=int(i)
                 )
