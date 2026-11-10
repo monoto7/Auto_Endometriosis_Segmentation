@@ -9,7 +9,7 @@ def save_overlay(
     gt_mask: np.ndarray,
     pred_mask: np.ndarray,
     output_path: Path,
-    alpha: float = 0.45,
+    alpha: float = 0.7,
 ):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -21,14 +21,14 @@ def save_overlay(
     gt = gt_mask > 0
     pred = pred_mask > 0
 
-    # GT = blue
-    overlay[gt] = [0, 0, 255]
+    # GT = Cyan
+    overlay[gt] = [0, 191, 196]
 
-    # Prediction = vermillion
-    overlay[pred] = [227, 66, 52]
+    # Prediction = Magenta
+    overlay[pred] = [204, 51, 204]
 
-    # Overlap = Blue tinted green
-    overlay[gt & pred] = [0, 158, 115]
+    # Overlap = Yellow
+    overlay[gt & pred] = [240, 228, 66]
 
     blended = cv2.addWeighted(image_np, 1 - alpha, overlay, alpha, 0)
     blended_bgr = cv2.cvtColor(blended, cv2.COLOR_RGB2BGR)
