@@ -33,6 +33,17 @@ def merge_binary_masks(masks):
 
     return merged
 
+def merge_multiclass_masks(masks):
+    if len(masks) == 0:
+        return None
+
+    merged = np.zeros_like(masks[0], dtype=np.uint8)
+
+    for mask in masks:
+        merged = np.maximum(merged, mask)
+
+    return merged
+
 
 def find_image_path(images_dir: Path, image_name: str) -> Path:
     candidate = images_dir / image_name

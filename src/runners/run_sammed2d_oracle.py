@@ -185,9 +185,14 @@ def run_one_prompt_mode(
                 point_coords=prompt["point_coords"],
                 point_labels=prompt["point_labels"],
             )
+            
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
+            #Recolour to appropriate grayscale value
+            if class_id is not None:
+                pred_mask[pred_mask > 0] = class_id
+            
             if pred_mask.shape != gt_mask.shape:
                 pred_mask = cv2.resize(
                     pred_mask,

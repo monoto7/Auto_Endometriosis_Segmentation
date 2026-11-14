@@ -13,6 +13,7 @@ from src.utils.mask_utils import (
     load_mask,
     save_mask,
     merge_binary_masks,
+    merge_multiclass_masks,
     find_image_path,
     empty_mask_like_image,
     ensure_same_size,
@@ -166,6 +167,10 @@ def run_one_prompt_mode(
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
+            #Recolour to appropriate grayscale value
+            if class_id is not None:
+                pred_mask[pred_mask > 0] = class_id
+
             pred_mask = ensure_same_size(pred_mask, gt_mask)
             lesion_pred_masks.append(pred_mask)
             #If class seperation exists, merge output
@@ -206,7 +211,10 @@ def run_one_prompt_mode(
             })
 
         if len(lesion_pred_masks) > 0:
-            merged_mask = merge_binary_masks(lesion_pred_masks)
+            if class_id is not None:
+                merged_mask = merge_multiclass_masks(lesion_pred_masks)
+            else:
+                merged_mask = merge_binary_masks(lesion_pred_masks)
         else:
             merged_mask = empty_mask_like_image(image_path)
         
@@ -316,10 +324,13 @@ def run_experiment(experiment_config_path: str):
     import torch
 
     experiment_config_path = Path(experiment_config_path)
-
+    project_root = Path(__file__).resolve().parents[2]
+    
     exp_cfg = load_yaml(experiment_config_path)
-    dataset_cfg = load_yaml(Path(exp_cfg["dataset_config"]))
-    model_cfg = load_yaml(Path(exp_cfg["model_config"]))
+    dataset_cfg_path = project_root / exp_cfg["dataset_config"]
+    model_cfg_path = project_root / exp_cfg["model_config"]
+    dataset_cfg = load_yaml(Path(dataset_cfg_path))
+    model_cfg = load_yaml(Path(model_cfg_path))
 
     dataset_name = dataset_cfg["dataset_name"]
     dataset_root = Path(dataset_cfg["dataset_root"])
