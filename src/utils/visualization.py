@@ -9,7 +9,7 @@ def save_overlay(
     gt_mask: np.ndarray,
     pred_mask: np.ndarray,
     output_path: Path,
-    alpha: float = 0.7,
+    alpha: float = 0.55,
 ):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
