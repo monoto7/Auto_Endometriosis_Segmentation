@@ -1,0 +1,424 @@
+from pathlib import Path
+import shutil
+import random
+import re
+from collections import defaultdict
+
+import numpy as np
+from PIL import Image
+
+
+# ============================================================
+# UD Ureter Multi & Binary Class Preparation Script
+# ============================================================
+
+# --- Input folders ---
+FRAMES_DIR = Path(
+    r"/data/m_meyer/AES/Datasets/UD Ureter/UD Ureter/UD Ureter-Uterine Artery-Nerve Dataset/images"
+)
+
+ANNOTS_DIR = Path(
+    r"/data/m_meyer/AES/Datasets/UD Ureter/UD Ureter/UD Ureter-Uterine Artery-Nerve Dataset/multi_mask"
+)
+
+# --- Output folder ---
+OUT_ROOT = Path(
+    r"/data/m_meyer/AES/SplitDatasets/UDUreter_ClassSplit"
+)
+
+# --- Split settings ---
+TRAIN_RATIO = 0.60
+VAL_RATIO = 0.20
+TEST_RATIO = 0.20
+
+RANDOM_SEED = 80
+
+# If True, deletes existing output folder before recreating it.
+# Keep False unless you intentionally want to overwrite everything.
+OVERWRITE_EXISTING = True
+
+
+def extract_case_id(filename: str) -> str:
+    """
+    extract relevant information for filename, defaulting to stem if not found
+    """
+    match = re.search(r"video_\d{1,2}", str(filename))
+    
+    if match:
+        return match.group(0)
+    return Path(filename).stem
+
+
+def collect_image_mask_pairs():
+    """
+    Collects all image-mask pairs.
+
+    Expected:
+      images/video_x.xxx{.png or .jpg}
+      multi_mask/video_x.xxx{.png or .jpg}
+    """
+    image_paths = sorted(FRAMES_DIR.glob("video*"))
+    pairs = []
+    missing_masks = []
+    for image_path in image_paths:
+        mask_path = ANNOTS_DIR / f"{re.sub(r"png_\d,\d*","png",image_path.stem)}.png"
+        if mask_path.exists():
+            pairs.append((image_path, mask_path))
+        else:
+            missing_masks.append(image_path.name)
+    print(pairs[0][0])
+    print(f"Total image files found:       {len(image_paths)}")
+    print(f"Image-mask pairs found:        {len(pairs)}")
+    print(f"Images without matching mask:  {len(missing_masks)}")
+
+    if missing_masks:
+        print("\nFirst missing masks:")
+        for name in missing_masks[:20]:
+            print(f"  {name}")
+        if len(missing_masks) > 20:
+            print(f"  ... and {len(missing_masks) - 20} more")
+
+    if not pairs:
+        raise RuntimeError("No valid image-mask pairs found.")
+
+    return pairs
+
+
+def group_pairs_by_case(pairs):
+    """
+    Groups image-mask pairs by case ID to reduce leakage between train/val/test.
+    """
+    grouped = {}
+    for image_path, mask_path in pairs:
+        case_id = extract_case_id(image_path)
+        grouped[case_id] = grouped.get(case_id,([],[]))
+        grouped[case_id][0].append((image_path, mask_path))
+        uniques = checkUniqueVals(mask_path=mask_path)
+        for unique in uniques:
+            if unique == 0:
+                continue
+            if not grouped[case_id][1].__contains__(unique):
+                grouped[case_id][1].append(unique)
+    print(f"Unique case groups found:      {len(grouped)}")
+
+    return grouped
+
+
+            
+
+
+def split_cases(grouped_pairs):
+    """
+    Splits case IDs into train/val/test.
+    This keeps all frames from the same case in the same split.
+    """
+    case_ids = list(grouped_pairs.keys())
+
+    random.seed(RANDOM_SEED)
+    random.shuffle(case_ids)
+
+    n_cases = len(case_ids)
+
+    n_train = int(round(n_cases * TRAIN_RATIO))
+    n_val = int(round(n_cases * VAL_RATIO))
+    trainvals=[]
+    train_cases = []
+    while len(trainvals) != 3:
+        found = False
+        for case_id in case_ids:
+            for val in grouped_pairs[case_id][1]:
+                if not trainvals.__contains__(val):
+                    found = True
+                    trainvals.append(int(val))
+            if(found):
+                train_cases.append(case_id)
+                n_train-=1
+                case_ids.remove(case_id)
+                break
+    valvals=[]
+    val_cases = []
+    while len(valvals) != 3:
+        found = False
+        for case_id in case_ids:
+            for val in grouped_pairs[case_id][1]:
+                if not valvals.__contains__(val):
+                    found = True
+                    valvals.append(val)
+            if(found):
+                val_cases.append(case_id)
+                n_val-=1
+                case_ids.remove(case_id)
+                break
+
+    testvals=[]
+    test_cases = []
+    while len(testvals) != 3:
+        found = False
+        for case_id in case_ids:
+            for val in grouped_pairs[case_id][1]:
+                if not testvals.__contains__(val):
+                    found = True
+                    testvals.append(val)
+            if(found):
+                test_cases.append(case_id)
+                case_ids.remove(case_id)
+                break
+
+    train_cases.extend(case_ids[:n_train])
+    val_cases.extend(case_ids[n_train:n_train + n_val])
+    test_cases.extend(case_ids[n_train + n_val:])
+                
+    split_dict = {
+        "train": [],
+        "val": [],
+        "test": [],
+    }
+
+    for case_id in train_cases:
+        split_dict["train"].extend(grouped_pairs[case_id][0])
+
+    for case_id in val_cases:
+        split_dict["val"].extend(grouped_pairs[case_id][0])
+
+    for case_id in test_cases:
+        split_dict["test"].extend(grouped_pairs[case_id][0])
+
+    print("\nCase-level split:")
+    print(f"  Train cases: {len(train_cases)}")
+    print(f"  Val cases:   {len(val_cases)}")
+    print(f"  Test cases:  {len(test_cases)}")
+
+    print("\nFrame-level split:")
+    print(f"  Train frames: {len(split_dict['train'])}")
+    print(f"  Val frames:   {len(split_dict['val'])}")
+    print(f"  Test frames:  {len(split_dict['test'])}")
+
+    return split_dict
+
+
+def convert_UD_Ureter_mask(mask_path: Path, class_name = None) -> tuple[Image.Image, np.ndarray]:
+    """
+    Dummy function to simply save in the same place and retain similar structure to other functions, to be refactored
+
+    UD Ureter value meaning:
+      background: 0
+      uterine artery:  1
+      ureter:  2
+      nerve: 3
+      
+    Values are shifted to be more visible for comparison to 85,170,255
+
+    """
+    mask = Image.open(mask_path).convert("L")
+    mask_np = np.array(mask).astype(np.uint8) * 85
+    uniqueVals = np.unique(mask_np)
+    #If class is given, select it and convert to binary mask
+    if class_name is not None:
+        mask_np = (mask_np == int(class_name)).astype(np.uint8) * 255
+
+    return (Image.fromarray(mask_np, mode="L"), uniqueVals)
+
+def checkUniqueVals(mask_path: Path) -> np.ndarray:
+    mask = Image.open(mask_path).convert("L")
+    mask_np = np.array(mask).astype(np.uint8) * 85
+    uniqueVals = np.unique(mask_np)
+    return uniqueVals
+
+
+def prepare_output_dirs():
+    """
+    Creates output directory structure.
+    """
+    if OVERWRITE_EXISTING and OUT_ROOT.exists():
+        shutil.rmtree(OUT_ROOT)
+
+    for split_name in ["train", "val", "test"]:
+        (OUT_ROOT / split_name / "images").mkdir(parents=True, exist_ok=True)
+        (OUT_ROOT / split_name / "masks").mkdir(parents=True, exist_ok=True)
+        for class_name in ["85","170","255"]:
+            (OUT_ROOT / class_name / split_name / "images").mkdir(parents=True, exist_ok=True)
+            (OUT_ROOT / class_name / split_name / "masks").mkdir(parents=True, exist_ok=True)
+
+
+def process_split(split_name: str, pairs, class_name = None):
+    """
+    Copies images and saves binary masks for a split.
+    """
+    
+    images_out = OUT_ROOT / split_name / "images"
+    masks_out = OUT_ROOT / split_name / "masks"
+    if(class_name is not None):
+        #Handle class seperation
+        images_out = OUT_ROOT / class_name / split_name / "images"
+        masks_out = OUT_ROOT / class_name / split_name / "masks"
+    processed = 0
+    failed = []
+    case_class_count =  {}
+    class_count = {85:0,170:0,255:0}
+    for image_path, mask_path in pairs:
+        try:
+            case_id = extract_case_id(image_path)
+            if case_id not in case_class_count:
+                #NOTE when making new dataset preprocessing, modify this to the appropriate values
+                case_class_count[case_id] = {85:0,170:0,255:0}
+            
+            image_dst = images_out / f"{image_path.name}"
+            mask_dst = masks_out / f"{image_path.name}"
+            # Copy original RGB laparoscopic image unchanged.
+            shutil.copy2(image_path, image_dst)
+
+            # Convert multi-class or box-like colored annotation to binary mask if class is given
+            mask, uniquevals = convert_UD_Ureter_mask(mask_path, class_name=class_name)
+            for val in uniquevals:
+                if val!= 0:
+                    case_class_count[case_id][val]+=1
+                    class_count[val]+=1
+            mask.save(mask_dst)
+
+            processed += 1
+
+        except Exception as e:
+            failed.append((image_path.name, str(e)))
+
+    print(f"\nProcessed {split_name}:")
+    print(f"  Expected: {len(pairs)}")
+    print(f"  Saved:    {processed}")
+    print(f"  Failed:   {len(failed)}")
+    for case in case_class_count:
+        print(f"{case} classes count: ")
+        print(case_class_count[case])
+    print(f"total classes count:")
+    print(class_count)
+    if failed:
+        print("\nFirst failures:")
+        for name, err in failed[:20]:
+            print(f"  {name}: {err}")
+
+
+def sanity_check_output():
+    """
+    Checks image-mask matching and prints foreground statistics.
+    """
+    print("\n" + "=" * 60)
+    print("Final output sanity check")
+    print("=" * 60)
+
+    total_images = 0
+    total_masks = 0
+
+    for split_name in ["train", "val", "test"]:
+        images_dir = OUT_ROOT / split_name / "images"
+        masks_dir = OUT_ROOT / split_name / "masks"
+
+        image_files = sorted(images_dir.glob("video*"))
+        mask_files = sorted(masks_dir.glob("video*"))
+
+        image_stems = {p.stem for p in image_files}
+        mask_stems = {p.stem for p in mask_files}
+        missing_masks = sorted(image_stems - mask_stems)
+        missing_images = sorted(mask_stems - image_stems)
+
+        foreground_masks = 0
+        empty_masks = 0
+
+        for mask_path in mask_files:
+            mask = Image.open(mask_path).convert("L")
+            mask_np = np.array(mask)
+
+            if np.any(mask_np > 0):
+                foreground_masks += 1
+            else:
+                empty_masks += 1
+
+        total_images += len(image_files)
+        total_masks += len(mask_files)
+
+        print(f"\n{split_name}")
+        print(f"  images:              {len(image_files)}")
+        print(f"  masks:               {len(mask_files)}")
+        print(f"  masks with foreground: {foreground_masks}")
+        print(f"  empty masks:           {empty_masks}")
+
+        if missing_masks:
+            print(f"  WARNING: images without masks: {len(missing_masks)}")
+            for x in missing_masks[:10]:
+                print(f"    {x}")
+
+        if missing_images:
+            print(f"  WARNING: masks without images: {len(missing_images)}")
+            for x in missing_images[:10]:
+                print(f"    {x}")
+
+        if not missing_masks and not missing_images:
+            print("  OK: image-mask stems match")
+
+    print("\nTotal standardized dataset:")
+    print(f"  images: {total_images}")
+    print(f"  masks:  {total_masks}")
+
+
+def check_split_leakage(split_dict):
+    """
+    Verifies that case IDs do not overlap across train/val/test.
+    """
+    split_cases = {}
+
+    for split_name, pairs in split_dict.items():
+        cases = set()
+        for image_path, _ in pairs:
+            cases.add(extract_case_id(str(image_path)))
+        split_cases[split_name] = cases
+
+    train_val_overlap = split_cases["train"] & split_cases["val"]
+    train_test_overlap = split_cases["train"] & split_cases["test"]
+    val_test_overlap = split_cases["val"] & split_cases["test"]
+
+    print("\nLeakage check:")
+    print(f"  Train/val case overlap:  {len(train_val_overlap)}")
+    print(f"  Train/test case overlap: {len(train_test_overlap)}")
+    print(f"  Val/test case overlap:   {len(val_test_overlap)}")
+
+    if train_val_overlap or train_test_overlap or val_test_overlap:
+        print("  WARNING: Case-level leakage detected.")
+    else:
+        print("  OK: no case-level overlap detected.")
+
+
+def main():
+    print("Preparing UD Ureter 60/20/20 binary organ-region dataset")
+    print(f"Frames folder: {FRAMES_DIR}")
+    print(f"Annots folder: {ANNOTS_DIR}")
+    print(f"Output folder: {OUT_ROOT}")
+
+    if not FRAMES_DIR.exists():
+        raise FileNotFoundError(f"Frames folder not found: {FRAMES_DIR}")
+
+    if not ANNOTS_DIR.exists():
+        raise FileNotFoundError(f"Annots folder not found: {ANNOTS_DIR}")
+
+    prepare_output_dirs()
+
+    pairs = collect_image_mask_pairs()
+    print(len(pairs))
+    grouped_pairs = group_pairs_by_case(pairs)
+    split_dict = split_cases(grouped_pairs)
+    print(len(split_dict["train"]))
+    print(len(split_dict["val"]))
+    print(len(split_dict["test"]))
+    check_split_leakage(split_dict)
+
+    process_split("train", split_dict["train"])
+    process_split("val", split_dict["val"])
+    process_split("test", split_dict["test"])
+    #NOTE when making new dataset preprocessing, modify this to the appropriate values
+    for class_name in ["85","170","255"]:
+        process_split("train", split_dict["train"],class_name)
+        process_split("val", split_dict["val"],class_name)
+        process_split("test", split_dict["test"],class_name)
+    sanity_check_output()
+
+    print("\nDone.")
+
+
+if __name__ == "__main__":
+    main()
