@@ -23,7 +23,7 @@ ANNOTS_DIR = Path(
 
 # --- Output folder ---
 OUT_ROOT = Path(
-    r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit"
+    r"/data/m_meyer/AES/SplitDatasets/GynSurg_ClassSplit_65"
 )
 
 # --- Split settings ---
@@ -31,7 +31,7 @@ TRAIN_RATIO = 0.60
 VAL_RATIO = 0.20
 TEST_RATIO = 0.20
 
-RANDOM_SEED = 10
+RANDOM_SEED = 65
 
 # If True, deletes existing output folder before recreating it.
 # Keep False unless you intentionally want to overwrite everything.
@@ -146,11 +146,11 @@ def split_cases(grouped_pairs):
     return split_dict
 
 
-def convert_gynsurg_mask(mask_path: Path, class_name = None) -> Image.Image:
+def convert_gynsurg_mask(mask_path: Path, class_name = None) -> tuple[Image.Image, np.ndarray]:
     """
     Dummy function to simply save in the same place and retain similar structure to other functions, to be refactored
 
-    gynsurg colors TBD!:
+    gynsurg value meaning:
       background: 0
       Uterus:  85
       Ovaries:  255
@@ -160,11 +160,12 @@ def convert_gynsurg_mask(mask_path: Path, class_name = None) -> Image.Image:
     """
     mask = Image.open(mask_path).convert("L")
     mask_np = np.array(mask)
+    uniqueVals = np.unique(mask_np)
     #If class is given, select it and convert to binary mask
     if class_name is not None:
         mask_np = (mask_np == int(class_name)).astype(np.uint8) * 255
 
-    return Image.fromarray(mask_np, mode="L")
+    return (Image.fromarray(mask_np, mode="L"), uniqueVals)
 
 
 def prepare_output_dirs():
@@ -177,6 +178,7 @@ def prepare_output_dirs():
     for split_name in ["train", "val", "test"]:
         (OUT_ROOT / split_name / "images").mkdir(parents=True, exist_ok=True)
         (OUT_ROOT / split_name / "masks").mkdir(parents=True, exist_ok=True)
+        #NOTE when making new dataset preprocessing, modify this to the appropriate values
         for class_name in ["85","170","255"]:
             (OUT_ROOT / class_name / split_name / "images").mkdir(parents=True, exist_ok=True)
             (OUT_ROOT / class_name / split_name / "masks").mkdir(parents=True, exist_ok=True)
@@ -195,18 +197,24 @@ def process_split(split_name: str, pairs, class_name = None):
         masks_out = OUT_ROOT / class_name / split_name / "masks"
     processed = 0
     failed = []
-
+    case_class_count =  {}
     for image_path, mask_path in pairs:
         try:
             case_id = extract_case_id(image_path)
+            if case_id not in case_class_count:
+                #NOTE when making new dataset preprocessing, modify this to the appropriate values
+                case_class_count[case_id] = {85:0,170:0,255:0}
+            
             image_dst = images_out / f"{case_id}_{image_path.name}"
             mask_dst = masks_out / f"{case_id}_{image_path.stem}.png"
-
             # Copy original RGB laparoscopic image unchanged.
             shutil.copy2(image_path, image_dst)
 
             # Convert multi-class or box-like colored annotation to binary mask if class is given
-            mask = convert_gynsurg_mask(mask_path, class_name=class_name)
+            mask, uniquevals = convert_gynsurg_mask(mask_path, class_name=class_name)
+            for val in uniquevals:
+                if val!= 0:
+                    case_class_count[case_id][val]+=1
             mask.save(mask_dst)
 
             processed += 1
@@ -218,7 +226,9 @@ def process_split(split_name: str, pairs, class_name = None):
     print(f"  Expected: {len(pairs)}")
     print(f"  Saved:    {processed}")
     print(f"  Failed:   {len(failed)}")
-
+    for case in case_class_count:
+        print(f"{case} classes count: ")
+        print(case_class_count[case])
     if failed:
         print("\nFirst failures:")
         for name, err in failed[:20]:
@@ -340,6 +350,7 @@ def main():
     process_split("train", split_dict["train"])
     process_split("val", split_dict["val"])
     process_split("test", split_dict["test"])
+    #NOTE when making new dataset preprocessing, modify this to the appropriate values
     for class_name in ["85","170","255"]:
         process_split("train", split_dict["train"],class_name)
         process_split("val", split_dict["val"],class_name)
